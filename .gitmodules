@@ -1,0 +1,3 @@
+[submodule "libstructs"]
+	path = libstructs
+	url = git@github.com:Bigyin1/libstructs.git
