@@ -1,8 +1,8 @@
 #include <stdio.h>
+#include "shell.h"
 
-
-
-int main() {
-    printf("Hello, World!\n");
-    return 0;
+int
+main (int argc, char **argv, char **environ)
+{
+  return start(environ);
 }
