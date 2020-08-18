@@ -1,4 +1,4 @@
-file(GLOB source_files "*.c")
+set(source_files environ.c shell.c)
 
 add_library(${SHELL_LIB} ${source_files})
 

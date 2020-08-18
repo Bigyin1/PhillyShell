@@ -3,6 +3,9 @@
 
 #include "shell.h"
 
-int parse_environ (Shell *sh, char **environ)
+#define PATH "PATH"
+
+sh_err parse_environ (Shell *sh, char **environ);
+sh_err parse_path (Shell *sh);
 
 #endif // PHILLYSHELL_ENVIRON_H
