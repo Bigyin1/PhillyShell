@@ -1,8 +1,11 @@
 #include "shell.h"
 #include "environ.h"
+#include "exec_cmd.h"
 #include <stdlib.h>
 
-sh_err
+char error_buf[512];
+
+sh_ecode
 config_init (t_config *cfg)
 {
   cfg->prompt = "$> ";
@@ -17,7 +20,7 @@ shell_free (Shell *sh)
   slice_free (sh->path, NULL);
 }
 
-sh_err
+sh_ecode
 shell_init (Shell *sh)
 {
   sh->cfg = calloc (1, sizeof (t_config));
@@ -46,7 +49,7 @@ shell_print_prompt (Shell *sh)
   fflush (sh->out);
 }
 
-sh_err
+sh_ecode
 main_loop (Shell *sh)
 {
   while (sh->running)
@@ -54,6 +57,11 @@ main_loop (Shell *sh)
       shell_print_prompt (sh);
       if (fgets (sh->cmd_buf, MAX_INPUT, sh->inp) == NULL)
         return SH_FATAL;
+      sh_err err = exec_cmd(sh);
+      if (err.code == SH_FATAL) return SH_FATAL;
+      if (err.code == SH_MODERATE) {
+          fprintf(stderr, "%s", error_buf);
+        }
     }
 
   return SH_OK;
@@ -76,7 +84,7 @@ start (char **environ)
   parse_path (&sh);
 
   sh.running = true;
-  sh_err err = main_loop (&sh);
+  sh_ecode err = main_loop (&sh);
   shell_free (&sh);
 
   if (err == SH_OK)

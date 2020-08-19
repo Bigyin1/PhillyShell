@@ -5,7 +5,7 @@
 
 #define PATH "PATH"
 
-sh_err parse_environ (Shell *sh, char **environ);
-sh_err parse_path (Shell *sh);
+sh_ecode parse_environ (Shell *sh, char **environ);
+sh_ecode parse_path (Shell *sh);
 
 #endif // PHILLYSHELL_ENVIRON_H

@@ -1,7 +1,7 @@
 #include "environ.h"
 #include <stdio.h>
 
-sh_err
+sh_ecode
 parse_environ (Shell *sh, char **environ)
 {
   char *key, *val;
@@ -21,7 +21,7 @@ parse_environ (Shell *sh, char **environ)
   return SH_OK;
 }
 
-sh_err
+sh_ecode
 parse_path (Shell *sh)
 {
   char *path, *path_elem;

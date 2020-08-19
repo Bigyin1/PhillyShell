@@ -1,4 +1,4 @@
-set(source_files environ.c shell.c)
+set(source_files environ.c shell.c exec_cmd.c cmd_parser.c cmd_tokenizer.c)
 
 add_library(${SHELL_LIB} ${source_files})
 
