@@ -21,22 +21,32 @@ get_string (char *input, char **str, size_t *len, int pos)
   return err;
 }
 
-
-void token_free(void *token) {
-  sh_token *t = (sh_token*)token;
-
-  free(t->val);
-  free(t);
+sh_token *
+get_next_token (sh_tokenizer *t)
+{
+  if (t->_curr == NULL)
+    {
+      if (list_get_head (t->tokens, &t->_curr) != S_OK)
+        return NULL;
+    }
+  sh_token *tok = t->_curr->data;
+  t->_curr = t->_curr->next;
+  return tok;
 }
 
 sh_err
-tokenize (char *input, Slice *tokens)
+tokenize (sh_tokenizer *t, char *input)
 {
   int pos = -1;
   sh_err err = { 0 };
   sh_token *tok;
   size_t len;
   char *str;
+  if (new_list (&t->tokens) != S_OK)
+    {
+      err.code = SH_FATAL;
+      return err;
+    }
   while (*input)
     {
       ++pos;
@@ -47,28 +57,28 @@ tokenize (char *input, Slice *tokens)
       if (len != 0)
         {
           tok->type = SH_T_DELIM;
-          slice_append (tokens, tok);
+          list_push_back (t->tokens, tok);
           input += len;
           continue;
         }
       if (strncmp (input, "|", 1) == 0)
         {
           tok->type = SH_T_PIPE;
-          slice_append (tokens, tok);
+          list_push_back (t->tokens, tok);
           input++;
           continue;
         }
       if (strncmp (input, ";", 1) == 0)
         {
           tok->type = SH_T_SEMICOLON;
-          slice_append (tokens, tok);
+          list_push_back (t->tokens, tok);
           input++;
           continue;
         }
       if (strncmp (input, "~", 1) == 0)
         {
           tok->type = SH_T_HOMEDIR;
-          slice_append (tokens, tok);
+          list_push_back (t->tokens, tok);
           input++;
           continue;
         }
@@ -76,7 +86,7 @@ tokenize (char *input, Slice *tokens)
         {
           input++;
           tok->type = SH_T_VAR;
-          slice_append (tokens, tok);
+          list_push_back (t->tokens, tok);
           continue;
         }
 
@@ -88,19 +98,34 @@ tokenize (char *input, Slice *tokens)
         }
       tok->val = str;
       tok->type = SH_T_WORD;
-      slice_append (tokens, tok); // TODO chek error
+      list_push_back (t->tokens, tok);
       input += len;
     }
-
+  tok = calloc (1, sizeof (sh_token));
+  tok->type = SH_T_EOF;
+  list_push_back (t->tokens, tok);
   return err;
 }
 
-void tokenizer_dump(Slice *tokens, FILE *f) {
-  for (int i = 0; i < slice_len(tokens); ++i)
+void
+tokenizer_dump (sh_tokenizer *t, FILE *f)
+{
+  Node *n = NULL;
+  list_get_head (t->tokens, &n);
+  while (n)
     {
-      sh_token *t;
-      slice_get(tokens, i, (void **)&t);
-      fprintf(f, "<%d>%s ", t->type, t->val);
+      sh_token *tok = n->data;
+      fprintf (f, "<%d>%s ", tok->type, tok->val);
+      n = n->next;
     }
-  fprintf(f, "\n");
+  fprintf (f, "\n");
+}
+
+void
+token_free (void *token)
+{
+  sh_token *t = (sh_token *)token;
+
+  free (t->val);
+  free (t);
 }

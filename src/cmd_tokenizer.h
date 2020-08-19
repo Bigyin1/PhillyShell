@@ -1,7 +1,7 @@
 #ifndef PHILLYSHELL_CMD_TOKENIZER_H
 #define PHILLYSHELL_CMD_TOKENIZER_H
 #include "shell.h"
-#include "structs/slice.h"
+#include "structs/list.h"
 
 typedef enum e_sh_token_type
 {
@@ -25,8 +25,14 @@ typedef struct s_sh_token
   int pos;
 } sh_token;
 
-sh_err tokenize (char *input, Slice *tokens);
+typedef struct s_tokenizer {
+  List *tokens;
+  Node *_curr;
+} sh_tokenizer;
+
+sh_err tokenize (sh_tokenizer *t, char *input);
+sh_token *get_next_token (sh_tokenizer *t);
 void token_free (void *token);
-void tokenizer_dump (Slice *tokens, FILE *f);
+void tokenizer_dump (sh_tokenizer *t, FILE *f);
 
 #endif // PHILLYSHELL_CMD_TOKENIZER_H
