@@ -56,7 +56,7 @@ tokenize (sh_tokenizer *t, char *input)
       len = strspn (input, spaces);
       if (len != 0)
         {
-          tok->type = SH_T_DELIM;
+          tok->type = SH_T_SPACE;
           list_push_back (t->tokens, tok);
           input += len;
           continue;
