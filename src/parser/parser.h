@@ -1,7 +1,7 @@
 #ifndef PHILLYSHELL_PARSER_H
 #define PHILLYSHELL_PARSER_H
 
-#include "../cmd_tokenizer.h"
+#include "../tokenizer/cmd_tokenizer.h"
 
 typedef enum e_node_type
 {
@@ -34,6 +34,6 @@ typedef struct s_parser
   void *root_node;
 } sh_parser;
 
-sh_err parse (sh_parser *p);
+sh_ecode parse (sh_parser *p);
 
 #endif // PHILLYSHELL_PARSER_H

@@ -1,24 +1,22 @@
 #include "cmd_tokenizer.h"
+#include "../errors/errors.h"
 
-extern char error_buf[512];
 char *reserved = "~$|<>&;\n\t ";
 char *spaces = " \t\n";
 
-sh_err
+sh_ecode
 get_string (char *input, char **str, size_t *len, int pos)
 {
-  sh_err err = { 0 };
   *len = strcspn (input, reserved);
   if (*len == 0)
     {
-      err.code = SH_MODERATE;
-      sprintf (error_buf, "fsh: unknown symbol at pos: %d\n", pos);
-      return err;
+      printf (UNKNOWN_SYMBOL, pos);
+      return SH_ERR;
     }
   *str = calloc (*len + 1, sizeof (char)); // TODO chek error
   strncpy (*str, input, *len);
   (*str)[*len] = '\0';
-  return err;
+  return SH_OK;
 }
 
 sh_token *
@@ -34,19 +32,15 @@ get_next_token (sh_tokenizer *t)
   return tok;
 }
 
-sh_err
+sh_ecode
 tokenize (sh_tokenizer *t, char *input)
 {
   int pos = -1;
-  sh_err err = { 0 };
   sh_token *tok;
   size_t len;
   char *str;
   if (new_list (&t->tokens) != S_OK)
-    {
-      err.code = SH_FATAL;
-      return err;
-    }
+    errors_fatal (MEM_ERROR);
   while (*input)
     {
       ++pos;
@@ -77,7 +71,7 @@ tokenize (sh_tokenizer *t, char *input)
         }
       if (strncmp (input, "~", 1) == 0)
         {
-          tok->type = SH_T_HOMEDIR;
+          tok->type = SH_T_TILDA;
           list_push_back (t->tokens, tok);
           input++;
           continue;
@@ -85,16 +79,14 @@ tokenize (sh_tokenizer *t, char *input)
       if (strncmp (input, "$", 1) == 0)
         {
           input++;
-          tok->type = SH_T_VAR;
+          tok->type = SH_T_VAR_SIGN;
           list_push_back (t->tokens, tok);
           continue;
         }
-
-      err = get_string (input, &str, &len, pos);
-      if (err.code != SH_OK)
+      if (get_string (input, &str, &len, pos) != SH_OK)
         {
           free (tok);
-          return err;
+          return SH_ERR;
         }
       tok->val = str;
       tok->type = SH_T_WORD;
@@ -104,7 +96,7 @@ tokenize (sh_tokenizer *t, char *input)
   tok = calloc (1, sizeof (sh_token));
   tok->type = SH_T_EOF;
   list_push_back (t->tokens, tok);
-  return err;
+  return SH_OK;
 }
 
 void

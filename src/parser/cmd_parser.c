@@ -1,4 +1,5 @@
 #include "cmd_parser.h"
+#include "../errors/errors.h"
 #include "utils.h"
 
 extern char error_buf[512];
@@ -22,11 +23,10 @@ process_var (sh_parser *p, cmd_node *cn)
   if (p->curr_token->type == SH_T_WORD)
     {
       char *val = hashtable_get (p->vars, p->curr_token->val);
+      eat_token (p, SH_T_WORD);
       if (val != NULL)
-        {
-          process_word (cn, val);
-          return;
-        }
+        process_word (cn, val);
+      return;
     }
   if (p->curr_token->type == SH_T_SPACE)
     {
@@ -35,24 +35,29 @@ process_var (sh_parser *p, cmd_node *cn)
     }
 }
 
-sh_err
+bool
+is_cmd_token (sh_parser *p)
+{
+  return p->curr_token->type == SH_T_WORD || p->curr_token->type == SH_T_VAR
+         || p->curr_token->type == SH_T_HOMEDIR;
+}
+
+sh_ecode
 parse_simple_cmd (sh_parser *p, cmd_node **res)
 {
-  sh_err err = { 0 };
   cmd_node *cn;
   int start = p->curr_token->pos;
 
   *res = calloc (1, sizeof (cmd_node));
   if (!*res)
-    exit (EXIT_FAILURE);
+    errors_fatal (MEM_ERROR);
   cn = *res;
   cn->type = NODE_CMD;
   if (new_list (&cn->args) != S_OK)
-    exit (EXIT_FAILURE);
+    errors_fatal (MEM_ERROR);
 
   eat_spaces (p);
-  while (p->curr_token->type == SH_T_WORD || p->curr_token->type == SH_T_VAR
-         || p->curr_token->type == SH_T_HOMEDIR)
+  while (is_cmd_token (p))
     {
       if (p->curr_token->type == SH_T_WORD)
         {
@@ -65,11 +70,9 @@ parse_simple_cmd (sh_parser *p, cmd_node **res)
     }
   if (cn->name == NULL)
     {
-      sprintf (error_buf, "command at pos %d is empty", start);
-      err.err = error_buf;
-      err.code = SH_MODERATE;
-      return err;
+      printf (EMPTY_CMD, start);
+      return SH_ERR;
     }
 
-  return err;
+  return SH_OK;
 }

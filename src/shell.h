@@ -28,14 +28,8 @@ typedef struct s_shell
 typedef enum e_shell_codes
 {
   SH_OK = 0,
-  SH_MODERATE = 1,
-  SH_FATAL = 2,
+  SH_ERR = 1,
 } sh_ecode;
 
-typedef struct s_sh_err
-{
-  char *err;
-  sh_ecode code;
-} sh_err;
 
 #endif // PHILLYSHELL_SHELL_H

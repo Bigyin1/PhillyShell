@@ -1,4 +1,5 @@
 #include "environ.h"
+#include "errors/errors.h"
 #include <stdio.h>
 
 sh_ecode
@@ -10,13 +11,13 @@ parse_environ (Shell *sh, char **environ)
       key = strtok_r (*environ, "=", &val);
       key = strdup (key);
       if (!key)
-        return SH_FATAL;
+        errors_fatal (MEM_ERROR);
       val = strdup (val);
       if (!val)
-        return SH_FATAL;
+        errors_fatal (MEM_ERROR);
 
       if (hashtable_set (sh->env, key, val) != S_OK)
-        return SH_FATAL;
+        errors_fatal (MEM_ERROR);
     }
   return SH_OK;
 }
@@ -32,7 +33,7 @@ parse_path (Shell *sh)
     {
       path = NULL;
       if (slice_append (sh->path, path_elem) != S_OK)
-        return SH_FATAL;
+        errors_fatal (MEM_ERROR);
     }
 
   return SH_OK;

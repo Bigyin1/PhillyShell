@@ -3,6 +3,6 @@
 
 #include "parser.h"
 
-sh_err parse_simple_cmd (sh_parser *p, cmd_node **res);
+sh_ecode parse_simple_cmd (sh_parser *p, cmd_node **res);
 
 #endif // PHILLYSHELL_CMD_PARSER_H

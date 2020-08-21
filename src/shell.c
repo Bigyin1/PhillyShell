@@ -1,9 +1,8 @@
 #include "shell.h"
 #include "environ.h"
-#include "exec_cmd.h"
+#include "errors/errors.h"
+#include "executor/exec_cmd.h"
 #include <stdlib.h>
-
-char error_buf[512];
 
 sh_ecode
 config_init (t_config *cfg)
@@ -25,20 +24,17 @@ shell_init (Shell *sh)
 {
   sh->cfg = calloc (1, sizeof (t_config));
   if (!sh->cfg)
-    return SH_FATAL;
-  t_ret rt = hashtable_new (&sh->env, string_hash, strcmp, free, free);
+    errors_fatal (MEM_ERROR);
+  t_ret rt = hashtable_new (&sh->env, string_hash,
+                            (int (*) (void *, void *))strcmp, free, free);
   if (rt != S_OK)
-    return SH_FATAL;
+    errors_fatal (MEM_ERROR);
   rt = slice_new (&sh->path, 0, 32);
   if (rt != S_OK)
-    return SH_FATAL;
+    errors_fatal (MEM_ERROR);
 
   if (config_init (sh->cfg) != SH_OK)
-    {
-      shell_free (sh);
-      return SH_FATAL;
-    }
-
+    return SH_ERR;
   return SH_OK;
 }
 
@@ -56,12 +52,8 @@ main_loop (Shell *sh)
     {
       shell_print_prompt (sh);
       if (fgets (sh->cmd_buf, MAX_INPUT, sh->inp) == NULL)
-        return SH_FATAL;
-      sh_err err = exec_cmd(sh);
-      if (err.code == SH_FATAL) return SH_FATAL;
-      if (err.code == SH_MODERATE) {
-          fprintf(stderr, "%s", error_buf);
-        }
+        return SH_ERR;
+      exec_cmd (sh);
     }
 
   return SH_OK;
@@ -73,6 +65,7 @@ start (char **environ)
   Shell sh = { 0 };
   sh.out = stdout;
   sh.inp = stdin;
+
   if (shell_init (&sh) != SH_OK)
     {
       shell_free (&sh);

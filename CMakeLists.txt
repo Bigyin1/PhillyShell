@@ -16,3 +16,4 @@ add_subdirectory(libstructs)
 add_subdirectory(src)
 
 target_link_libraries(${SHELL_EXE_NAME} ${SHELL_LIB})
+#target_link_libraries(${SHELL_EXE_NAME} ncurses)

@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "../errors/errors.h"
 #include "parser.h"
 
 extern char error_buf[512];
@@ -48,7 +49,7 @@ void ast_dump(void *node, FILE *f) {
     if (list_get_head(cn->args, &head) != S_OK) return;
     fprintf(f, "args: { ");
     while (head) {
-      fprintf(f, "%s ", head->data);
+      fprintf(f, "%s ", (char*)head->data);
       head = head->next;
     }
     fprintf(f, "}");
@@ -64,19 +65,16 @@ void ast_dump(void *node, FILE *f) {
   }
 }
 
-sh_err
+sh_ecode
 eat_token (sh_parser *p, sh_token_type type)
 {
-  sh_err err = { 0 };
-
   if (p->curr_token->type != type)
     {
-      err.code = SH_MODERATE;
-      sprintf (error_buf, "fsh: parse error at pos: %d\n", p->curr_token->pos);
-      return err;
+      printf (PARSE_ERROR, p->curr_token->pos);
+      return SH_ERR;
     }
   p->curr_token = get_next_token (p->tok);
-  return err;
+  return SH_OK;
 }
 
 sh_token_type
