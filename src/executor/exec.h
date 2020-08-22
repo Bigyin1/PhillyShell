@@ -6,7 +6,8 @@
 typedef struct s_sh_executor {
   char **kv_env;
   Slice *path_var;
-  sh_ast_node root_node;
+
+  int last_retcode;
 } sh_executor;
 
 sh_ecode sh_exec (Shell *sh);

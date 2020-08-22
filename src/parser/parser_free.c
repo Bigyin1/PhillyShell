@@ -1,5 +1,8 @@
 #include "parser.h"
 
+
+void
+ast_free (sh_ast_node node);
 void
 cmd_node_free (cmd_node *cn)
 {
@@ -28,7 +31,7 @@ ast_free (sh_ast_node node)
   if (type == NODE_CMD)
     cmd_node_free (node);
 
-  if (type == NODE_BIN)
+  if (type == NODE_BOOL || type == NODE_PIPE)
     pipe_node_free (node);
 }
 

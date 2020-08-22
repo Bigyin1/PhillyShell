@@ -58,14 +58,12 @@ ast_dump (sh_ast_node node, FILE *f)
       fprintf (f, "}");
       return;
     }
-  if (type == NODE_BIN)
+  if (type == NODE_PIPE)
     {
       bin_op_node *cn = node;
       ast_dump (cn->left, f);
-      if (cn->token == SH_T_PIPE)
-        {
-          fprintf (f, " | ");
-        }
+      fprintf (f, " | ");
       ast_dump (cn->right, f);
     }
+  fflush(f);
 }

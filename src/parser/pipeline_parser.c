@@ -9,7 +9,7 @@ pipeline_node_init (void *left, void *right)
   bin_op_node *bin_node = calloc (1, sizeof (bin_op_node));
   if (!bin_node)
     errors_fatal (MEM_ERROR);
-  bin_node->type = NODE_BIN;
+  bin_node->type = NODE_PIPE;
   bin_node->token = SH_T_PIPE;
   bin_node->left = left;
   bin_node->right = right;
@@ -24,18 +24,18 @@ parse_pipeline (sh_parser *p, void **res)
 
   err = parse_simple_cmd (p, (cmd_node **)&node);
   if (err != SH_OK)
-    return err;
+    {
+      parser_free (node);
+      return err;
+    }
 
-  while (p->curr_token->type == SH_T_PIPE)
+  if (p->curr_token->type == SH_T_PIPE)
     {
       eat_token (p, SH_T_PIPE);
 
       void *right = NULL;
-      if ((err = parse_simple_cmd (p, (cmd_node **)&right)) != SH_OK)
-        {
-          parser_free (node);
+      if ((err = parse_pipeline (p, &right)) != SH_OK)
           return err;
-        }
       node = pipeline_node_init (node, right);
       eat_spaces (p);
     }

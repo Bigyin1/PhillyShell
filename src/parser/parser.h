@@ -7,8 +7,9 @@ typedef void *sh_ast_node;
 
 typedef enum e_node_type
 {
-  NODE_BIN = 0,
+  NODE_BOOL = 0,
   NODE_CMD = 1,
+  NODE_PIPE = 2,
 } node_type;
 
 typedef struct s_cmd_node
@@ -42,5 +43,6 @@ typedef struct s_parser
 sh_ecode parse_tokens (sh_parser *p);
 void parser_free(sh_parser *p);
 node_type get_node_type (sh_ast_node node);
+void ast_dump(sh_ast_node node, FILE *f);
 
 #endif // PHILLYSHELL_PARSER_H

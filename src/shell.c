@@ -54,7 +54,6 @@ main_loop (Shell *sh)
       if (fgets (sh->cmd_buf, MAX_INPUT, stdin) == NULL)
         return SH_ERR;
       sh_exec (sh);
-      return SH_OK;
     }
 }
 
