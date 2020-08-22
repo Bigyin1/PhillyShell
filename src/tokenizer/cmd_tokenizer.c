@@ -5,7 +5,7 @@ char *reserved = "~$|<>&;\n\t ";
 char *spaces = " \t\n";
 
 sh_ecode
-get_string (char *input, char **str, size_t *len, int pos)
+get_word (char *input, char **str, size_t *len, int pos)
 {
   *len = strcspn (input, reserved);
   if (*len == 0)
@@ -32,7 +32,6 @@ get_next_token (sh_tokenizer *t)
   return tok;
 }
 
-
 void
 token_free (void *token)
 {
@@ -46,6 +45,22 @@ void
 tokenizer_free (sh_tokenizer *t)
 {
   list_free (t->tokens, token_free);
+}
+
+bool
+check_token (sh_tokenizer *t, char **input, sh_token *tok,
+             sh_token_type t_type, char *tok_val)
+{
+  size_t tok_len = strlen (tok_val);
+  if (strncmp (*input, tok_val, tok_len) == 0)
+    {
+      tok->type = t_type;
+      tok->val = strdup(tok_val);
+      list_push_back (t->tokens, tok);
+      (*input) += tok_len;
+      return true;
+    }
+  return false;
 }
 
 sh_ecode
@@ -67,39 +82,29 @@ tokenize (sh_tokenizer *t, char *input)
       if (len != 0)
         {
           tok->type = SH_T_SPACE;
+          tok->val = strdup(TOK_SPACE);
           list_push_back (t->tokens, tok);
           input += len;
           continue;
         }
-      if (strncmp (input, "|", 1) == 0)
-        {
-          tok->type = SH_T_PIPE;
-          list_push_back (t->tokens, tok);
-          input++;
-          continue;
-        }
-      if (strncmp (input, ";", 1) == 0)
-        {
-          tok->type = SH_T_SEMICOLON;
-          list_push_back (t->tokens, tok);
-          input++;
-          continue;
-        }
-      if (strncmp (input, "~", 1) == 0)
-        {
-          tok->type = SH_T_TILDA;
-          list_push_back (t->tokens, tok);
-          input++;
-          continue;
-        }
-      if (strncmp (input, "$", 1) == 0)
-        {
-          input++;
-          tok->type = SH_T_VAR_SIGN;
-          list_push_back (t->tokens, tok);
-          continue;
-        }
-      if (get_string (input, &str, &len, pos) != SH_OK)
+      if (check_token (t, &input, tok, SH_T_PIPE, TOK_PIPE))
+        continue;
+      if (check_token (t, &input, tok, SH_T_SEMICOLON, TOK_SEMICOLON))
+        continue;
+      if (check_token (t, &input, tok, SH_T_TILDA, TOK_TILDA))
+        continue;
+      if (check_token (t, &input, tok, SH_T_VAR_SIGN, TOK_VAR_SIGN))
+        continue;
+      if (check_token (t, &input, tok, SH_T_REDIR_D_L, TOK_REDIR_D_L))
+        continue;
+      if (check_token (t, &input, tok, SH_T_REDIR_D_R, TOK_REDIR_D_R))
+        continue;
+      if (check_token (t, &input, tok, SH_T_REDIR_S_R, TOK_REDIR_S_R))
+        continue;
+      if (check_token (t, &input, tok, SH_T_REDIR_S_L, TOK_REDIR_S_L))
+        continue;
+
+      if (get_word (input, &str, &len, pos) != SH_OK)
         {
           free (tok);
           list_free (t->tokens, token_free);

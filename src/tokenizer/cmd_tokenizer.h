@@ -19,6 +19,16 @@ typedef enum e_sh_token_type
   SH_T_EOF = 10,
 } sh_token_type;
 
+#define TOK_PIPE "|"
+#define TOK_SEMICOLON ";"
+#define TOK_REDIR_S_R ">"
+#define TOK_REDIR_D_R ">>"
+#define TOK_REDIR_S_L "<"
+#define TOK_REDIR_D_L "<<"
+#define TOK_TILDA "~"
+#define TOK_VAR_SIGN "$"
+#define TOK_SPACE " "
+
 typedef struct s_sh_token
 {
   char *val;
