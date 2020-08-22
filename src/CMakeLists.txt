@@ -1,8 +1,14 @@
-set(source_files environ.c shell.c executor/exec_cmd.c errors/errors.c
+set(source_files environ/environ.c
+        shell.c
+        executor/exec.c
+        executor/fs.c
+        executor/exec_args.c
+        errors/errors.c
         parser/pipeline_parser.c
         parser/cmd_parser.c
         parser/utils.c
         parser/parser.c
+        parser/parser_free.c
         tokenizer/cmd_tokenizer.c)
 
 add_library(${SHELL_LIB} ${source_files})

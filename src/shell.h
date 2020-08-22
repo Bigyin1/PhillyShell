@@ -19,10 +19,8 @@ typedef struct s_shell
   HTable *env;
   Slice *path;
 
+
   char cmd_buf[MAX_INPUT];
-  FILE *out;
-  FILE *inp;
-  bool running;
 } Shell;
 
 typedef enum e_shell_codes

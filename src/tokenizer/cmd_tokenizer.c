@@ -32,6 +32,22 @@ get_next_token (sh_tokenizer *t)
   return tok;
 }
 
+
+void
+token_free (void *token)
+{
+  sh_token *t = (sh_token *)token;
+
+  free (t->val);
+  free (t);
+}
+
+void
+tokenizer_free (sh_tokenizer *t)
+{
+  list_free (t->tokens, token_free);
+}
+
 sh_ecode
 tokenize (sh_tokenizer *t, char *input)
 {
@@ -86,6 +102,7 @@ tokenize (sh_tokenizer *t, char *input)
       if (get_string (input, &str, &len, pos) != SH_OK)
         {
           free (tok);
+          list_free (t->tokens, token_free);
           return SH_ERR;
         }
       tok->val = str;
@@ -111,13 +128,4 @@ tokenizer_dump (sh_tokenizer *t, FILE *f)
       n = n->next;
     }
   fprintf (f, "\n");
-}
-
-void
-token_free (void *token)
-{
-  sh_token *t = (sh_token *)token;
-
-  free (t->val);
-  free (t);
 }

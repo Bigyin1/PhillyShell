@@ -2,8 +2,6 @@
 #include "../errors/errors.h"
 #include "utils.h"
 
-extern char error_buf[512];
-
 void
 process_word (cmd_node *cn, char *word)
 {
@@ -19,7 +17,7 @@ process_word (cmd_node *cn, char *word)
 void
 process_var (sh_parser *p, cmd_node *cn)
 {
-  eat_token (p, SH_T_VAR);
+  eat_token (p, SH_T_VAR_SIGN);
   if (p->curr_token->type == SH_T_WORD)
     {
       char *val = hashtable_get (p->vars, p->curr_token->val);
@@ -38,8 +36,9 @@ process_var (sh_parser *p, cmd_node *cn)
 bool
 is_cmd_token (sh_parser *p)
 {
-  return p->curr_token->type == SH_T_WORD || p->curr_token->type == SH_T_VAR
-         || p->curr_token->type == SH_T_HOMEDIR;
+  return p->curr_token->type == SH_T_WORD
+         || p->curr_token->type == SH_T_VAR_SIGN
+         || p->curr_token->type == SH_T_TILDA;
 }
 
 sh_ecode
@@ -65,9 +64,10 @@ parse_simple_cmd (sh_parser *p, cmd_node **res)
           eat_token (p, SH_T_WORD);
           eat_spaces (p);
         }
-      if (p->curr_token->type == SH_T_VAR)
+      if (p->curr_token->type == SH_T_VAR_SIGN)
         process_var (p, cn);
     }
+
   if (cn->name == NULL)
     {
       printf (EMPTY_CMD, start);

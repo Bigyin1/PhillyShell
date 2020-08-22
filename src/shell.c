@@ -1,7 +1,7 @@
 #include "shell.h"
-#include "environ.h"
+#include "environ/environ.h"
 #include "errors/errors.h"
-#include "executor/exec_cmd.h"
+#include "executor/exec.h"
 #include <stdlib.h>
 
 sh_ecode
@@ -26,7 +26,7 @@ shell_init (Shell *sh)
   if (!sh->cfg)
     errors_fatal (MEM_ERROR);
   t_ret rt = hashtable_new (&sh->env, string_hash,
-                            (int (*) (void *, void *))strcmp, free, free);
+                            (int (*) (void *, void *))strcmp, NULL, NULL);
   if (rt != S_OK)
     errors_fatal (MEM_ERROR);
   rt = slice_new (&sh->path, 0, 32);
@@ -41,30 +41,27 @@ shell_init (Shell *sh)
 void
 shell_print_prompt (Shell *sh)
 {
-  fprintf (sh->out, "%s", sh->cfg->prompt);
-  fflush (sh->out);
+  printf ("%s", sh->cfg->prompt);
+  fflush (stdout);
 }
 
 sh_ecode
 main_loop (Shell *sh)
 {
-  while (sh->running)
+  while (1)
     {
       shell_print_prompt (sh);
-      if (fgets (sh->cmd_buf, MAX_INPUT, sh->inp) == NULL)
+      if (fgets (sh->cmd_buf, MAX_INPUT, stdin) == NULL)
         return SH_ERR;
-      exec_cmd (sh);
+      sh_exec (sh);
+      return SH_OK;
     }
-
-  return SH_OK;
 }
 
 int
 start (char **environ)
 {
   Shell sh = { 0 };
-  sh.out = stdout;
-  sh.inp = stdin;
 
   if (shell_init (&sh) != SH_OK)
     {
@@ -76,7 +73,6 @@ start (char **environ)
   parse_environ (&sh, environ);
   parse_path (&sh);
 
-  sh.running = true;
   sh_ecode err = main_loop (&sh);
   shell_free (&sh);
 

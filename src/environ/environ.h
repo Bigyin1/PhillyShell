@@ -1,7 +1,7 @@
 #ifndef PHILLYSHELL_ENVIRON_H
 #define PHILLYSHELL_ENVIRON_H
 
-#include "shell.h"
+#include "../shell.h"
 
 #define PATH "PATH"
 

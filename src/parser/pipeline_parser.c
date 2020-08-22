@@ -33,7 +33,7 @@ parse_pipeline (sh_parser *p, void **res)
       void *right = NULL;
       if ((err = parse_simple_cmd (p, (cmd_node **)&right)) != SH_OK)
         {
-          ast_free (node);
+          parser_free (node);
           return err;
         }
       node = pipeline_node_init (node, right);

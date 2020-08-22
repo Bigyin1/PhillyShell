@@ -34,7 +34,7 @@ typedef struct s_tokenizer
 
 sh_ecode tokenize (sh_tokenizer *t, char *input);
 sh_token *get_next_token (sh_tokenizer *t);
-void token_free (void *token);
+void tokenizer_free (sh_tokenizer *t);
 void tokenizer_dump (sh_tokenizer *t, FILE *f);
 
 
