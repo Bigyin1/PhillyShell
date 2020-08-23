@@ -1,8 +1,8 @@
 #include "exec.h"
+#include "../builtins/builtins.h"
 #include "../errors/errors.h"
 #include "exec_args.h"
 #include "fs.h"
-#include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -14,13 +14,13 @@ apply_cmd_pipe_io (int *inp, int *out)
     {
       close (inp[1]);
       dup2 (inp[0], STDIN_FILENO);
-      close(inp[0]);
+      close (inp[0]);
     }
   if (out)
     {
       close (out[0]);
       dup2 (out[1], STDOUT_FILENO);
-      close(out[1]);
+      close (out[1]);
     }
 }
 
@@ -40,7 +40,7 @@ apply_cmd_redirs (List *redirs)
   struct s_redir *redir;
   Node *head;
   if (list_get_head (redirs, &head) != S_OK)
-    return ; // no redirs;
+    return; // no redirs;
 
   while (head)
     {
@@ -48,22 +48,23 @@ apply_cmd_redirs (List *redirs)
 
       if (redir->to_file)
         {
-          int flags = O_WRONLY| O_CREAT;
+          int flags = O_WRONLY | O_CREAT;
           flags = redir->append ? (flags | O_APPEND) : flags;
           int o_fd = open (redir->to_file, flags,
                            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
           if (o_fd == -1)
-              exit (EXIT_FAILURE);
+            exit (EXIT_FAILURE);
           if (dup2 (o_fd, redir->from_fd) == -1)
-              exit (EXIT_FAILURE);
+            exit (EXIT_FAILURE);
         }
-      if (redir->from_file) {
-        int flags = O_RDONLY;
-        int f_fd = open (redir->from_file, flags);
-        if (f_fd == -1)
-          exit (EXIT_FAILURE);
-        if (dup2 (f_fd, redir->to_fd) == -1)
-          exit (EXIT_FAILURE);
+      if (redir->from_file)
+        {
+          int flags = O_RDONLY;
+          int f_fd = open (redir->from_file, flags);
+          if (f_fd == -1)
+            exit (EXIT_FAILURE);
+          if (dup2 (f_fd, redir->to_fd) == -1)
+            exit (EXIT_FAILURE);
         }
 
       head = head->next;
@@ -73,26 +74,38 @@ apply_cmd_redirs (List *redirs)
 int
 exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp[2], int out[2])
 {
-  char *path = find_exe_path (e, cn->name);
-  if (!path)
-    return 0;
+  int cmd_cd = -1;
   char **args = args_to_str_arr (cn->name, cn->args);
+
+  if (strcmp (cn->name, CMD_EXIT) == 0)
+    sh_builtin_exit ();
+  if (strcmp (cn->name, CMD_CD) == 0)
+    cmd_cd = sh_builtin_cd (args, e->env);
+
   int pid = fork ();
   if (pid < 0)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      apply_cmd_redirs(cn->redirs);
+      if (cmd_cd != -1)
+        exit (
+            cmd_cd); // exit immediately if cd was called, with cd exit status
+      apply_cmd_redirs (cn->redirs);
       apply_cmd_pipe_io (inp, out);
+
+      if (strcmp (cn->name, CMD_ECHO) == 0) sh_builtin_echo(args);
+
+      char *path = find_exe_path (e, cn->name);
+      if (!path)
+        exit(EXIT_FAILURE);
       if (execve (path, args, e->kv_env) < 0)
-        errors_fatal ("fsh: exec failed\n");
+        exit(EXIT_FAILURE);
     }
   free_string_arr (args);
-  free (path);
   return pid;
 }
 
-// returns number of processes that was forked by this and all subsequent
+// returns number of processes that were forked by this and all subsequent
 // pipes. Returns 0 on error
 int
 exec_pipeline (sh_executor *e, bin_op_node *pn, int inp[2])
@@ -163,6 +176,7 @@ void
 exec_init (sh_executor *e, Slice *path, HTable *vars)
 {
   e->kv_env = env_to_kv (vars);
+  e->env = vars;
   e->path_var = path;
 }
 
@@ -188,8 +202,8 @@ sh_exec (Shell *sh)
     return SH_ERR;
 
   exec_init (&e, sh->path, sh->env);
-//  ast_dump (p.root_node, stdout); // for debug
-//  fflush (stdout);
+  //  ast_dump (p.root_node, stdout); // for debug
+  //  fflush (stdout);
   sh_ecode err = exec_ast (&e, p.root_node);
 
   parser_free (&p);

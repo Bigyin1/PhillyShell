@@ -117,7 +117,6 @@ sh_ecode
 parse_simple_cmd (sh_parser *p, cmd_node **res)
 {
   cmd_node *cn;
-  int start = p->curr_token->pos;
 
   cn = create_cmd_node (res);
   eat_spaces (p);
