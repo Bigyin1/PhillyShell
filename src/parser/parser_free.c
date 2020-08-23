@@ -1,14 +1,15 @@
 #include "parser.h"
 
-
 void
 ast_free (sh_ast_node node);
+
 void
 cmd_node_free (cmd_node *cn)
 {
   if (!cn)
     return;
   list_free (cn->args, NULL);
+  list_free(cn->redirs, free);
   free (cn);
 }
 

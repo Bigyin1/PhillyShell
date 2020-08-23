@@ -25,7 +25,7 @@ parse_pipeline (sh_parser *p, void **res)
   err = parse_simple_cmd (p, (cmd_node **)&node);
   if (err != SH_OK)
     {
-      parser_free (node);
+      parser_free (p);
       return err;
     }
 

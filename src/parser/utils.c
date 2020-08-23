@@ -56,6 +56,21 @@ ast_dump (sh_ast_node node, FILE *f)
           head = head->next;
         }
       fprintf (f, "}");
+
+      if (list_get_head (cn->redirs, &head) != S_OK)
+        return;
+      fprintf (f, " redirs: [ ");
+      while (head)
+        {
+          struct s_redir *r = head->data;
+          if (r->from_file)
+            fprintf (f, " %d<%s ", r->to_fd, r->from_file);
+          if (r->to_file)
+            r->append ? fprintf (f, " %d>>%s ", r->from_fd, r->to_file)
+                      : fprintf (f, " %d>%s ", r->from_fd, r->to_file);
+          head = head->next;
+        }
+      fprintf (f, "]");
       return;
     }
   if (type == NODE_PIPE)
@@ -65,5 +80,4 @@ ast_dump (sh_ast_node node, FILE *f)
       fprintf (f, " | ");
       ast_dump (cn->right, f);
     }
-  fflush(f);
 }
