@@ -17,3 +17,17 @@ add_subdirectory(src)
 
 target_link_libraries(${SHELL_EXE_NAME} ${SHELL_LIB})
 #target_link_libraries(${SHELL_EXE_NAME} ncurses)
+
+if(NOT MYLIB_TESTING)
+    message(STATUS "Тестирование проекта Mylib выключено")
+elseif(IS_SUBPROJECT)
+    message(STATUS "Mylib не тестируется в режиме подмодуля")
+else()
+    add_subdirectory(test)
+endif()
+enable_testing()
+
+add_test(NAME fsh_test
+        COMMAND "python" "${PROJECT_SOURCE_DIR}/tests/fsh_test.py"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_tests_properties(fsh_test PROPERTIES ENVIRONMENT "FSH=./${SHELL_EXE_NAME}")

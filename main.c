@@ -4,5 +4,5 @@
 int
 main (int argc, char **argv, char **environ)
 {
-  return start(environ);
+  return start(argc, argv, environ);
 }

@@ -58,7 +58,7 @@ main_loop (Shell *sh)
 }
 
 int
-start (char **environ)
+start (int argc, char **argv, char **environ)
 {
   Shell sh = { 0 };
 
@@ -72,6 +72,18 @@ start (char **environ)
   parse_environ (&sh, environ);
   parse_path (&sh);
 
+  if (argc > 2 && strcmp (argv[1], "-c") == 0)
+    {
+      argv += 2;
+      while (*argv)
+        {
+          strcat (sh.cmd_buf, *argv++);
+          strcat (sh.cmd_buf, " ");
+        }
+      sh_exec (&sh);
+      shell_free (&sh);
+      return EXIT_SUCCESS;
+    }
   sh_ecode err = main_loop (&sh);
   shell_free (&sh);
 
