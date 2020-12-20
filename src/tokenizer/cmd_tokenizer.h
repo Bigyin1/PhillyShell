@@ -1,8 +1,9 @@
 #ifndef PHILLYSHELL_CMD_TOKENIZER_H
 #define PHILLYSHELL_CMD_TOKENIZER_H
-#include "../shell.h"
+#include "../errors/errors.h"
 #include "structs/list.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef enum e_sh_token_type
 {
@@ -21,6 +22,8 @@ typedef enum e_sh_token_type
 
   SH_T_SPACE = 1 << 9,
   SH_T_EOF = 1 << 10,
+  SH_T_AMP = 1 << 11,
+
 } sh_token_type;
 
 #define TOK_PIPE "|"
@@ -32,6 +35,7 @@ typedef enum e_sh_token_type
 #define TOK_TILDA "~"
 #define TOK_VAR_SIGN "$"
 #define TOK_SPACE " "
+#define TOK_AMP "&"
 
 #define cmd_tokens_mask                                                       \
   (SH_T_WORD | SH_T_VAR_SIGN | SH_T_TILDA | SH_T_REDIR_D_L | SH_T_REDIR_D_R   \

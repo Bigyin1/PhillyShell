@@ -1,17 +1,19 @@
 #ifndef PHILLYSHELL_EXEC_H
 #define PHILLYSHELL_EXEC_H
-#include "../shell.h"
 #include "../parser/parser.h"
-//#include "structs/hashtable.h"
+#include "job_control.h"
+#include <structs/slice.h>
 
-typedef struct s_sh_executor {
+typedef struct s_sh_executor
+{
   char **kv_env;
   HTable *env;
   Slice *path_var;
 
-  int last_retcode;
+  job *curr_job;
+  List *active_jobs;
 } sh_executor;
 
-sh_ecode sh_exec (Shell *sh);
+sh_ecode execute_cmd (sh_executor *e, char *cmd);
 
 #endif // PHILLYSHELL_EXEC_H

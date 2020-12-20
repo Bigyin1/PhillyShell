@@ -9,4 +9,10 @@
 
 void errors_fatal (char *err);
 
+typedef enum e_shell_codes
+{
+  SH_OK = 0,
+  SH_ERR = 1,
+} sh_ecode;
+
 #endif // PHILLYSHELL_ERRORS_H

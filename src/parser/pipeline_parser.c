@@ -41,5 +41,6 @@ parse_pipeline (sh_parser *p, void **res)
     }
   *res = node;
 
+
   return SH_OK;
 }

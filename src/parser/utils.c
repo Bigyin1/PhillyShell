@@ -48,7 +48,10 @@ ast_dump (sh_ast_node node, FILE *f)
       fprintf (f, "cmd: %s ", cn->name);
       Node *head = NULL;
       if (list_get_head (cn->args, &head) != S_OK)
-        return;
+        {
+          //fprintf(f, "\n");
+          return;
+        }
       fprintf (f, "args: { ");
       while (head)
         {
@@ -58,7 +61,10 @@ ast_dump (sh_ast_node node, FILE *f)
       fprintf (f, "}");
 
       if (list_get_head (cn->redirs, &head) != S_OK)
-        return;
+        {
+          //fprintf(f, "\n");
+          return;
+        }
       fprintf (f, " redirs: [ ");
       while (head)
         {
@@ -71,6 +77,7 @@ ast_dump (sh_ast_node node, FILE *f)
           head = head->next;
         }
       fprintf (f, "]");
+      //fprintf(f, "\n");
       return;
     }
   if (type == NODE_PIPE)

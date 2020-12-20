@@ -2,6 +2,7 @@
 #define PHILLYSHELL_PARSER_H
 
 #include "../tokenizer/cmd_tokenizer.h"
+#include "structs/hashtable.h"
 #include <limits.h>
 
 typedef void *sh_ast_node;
@@ -28,7 +29,7 @@ typedef struct s_cmd_node
   char *name;
   List *args;
   List *redirs;
-
+  bool is_background;
 } cmd_node;
 
 typedef struct s_bin_op_node
@@ -47,10 +48,9 @@ typedef struct s_parser
   sh_ast_node root_node;
 
   sh_token *curr_token;
-  HTable *vars;
 } sh_parser;
 
-sh_ecode parse_tokens (sh_parser *p);
+sh_ecode parse_tokens (sh_parser *p, sh_tokenizer *t);
 void parser_free (sh_parser *p);
 node_type get_node_type (sh_ast_node node);
 void ast_dump (sh_ast_node node, FILE *f);

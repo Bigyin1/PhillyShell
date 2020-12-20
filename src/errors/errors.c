@@ -3,7 +3,7 @@
 
 void
 errors_fatal (char *err) {
-  printf("%s", err);
+  fprintf(stderr, "%s", err);
   exit(EXIT_FAILURE);
 }
 

@@ -55,7 +55,7 @@ check_token (sh_tokenizer *t, char **input, sh_token *tok,
   if (strncmp (*input, tok_val, tok_len) == 0)
     {
       tok->type = t_type;
-      tok->val = strdup(tok_val);
+      tok->val = strdup (tok_val);
       list_push_back (t->tokens, tok);
       (*input) += tok_len;
       return true;
@@ -69,9 +69,10 @@ tokenize (sh_tokenizer *t, char *input)
   int pos = -1;
   sh_token *tok;
   size_t len;
-  char *str;
+
   if (new_list (&t->tokens) != S_OK)
     errors_fatal (MEM_ERROR);
+  t->_curr = NULL;
   while (*input)
     {
       ++pos;
@@ -82,7 +83,7 @@ tokenize (sh_tokenizer *t, char *input)
       if (len != 0)
         {
           tok->type = SH_T_SPACE;
-          tok->val = strdup(TOK_SPACE);
+          tok->val = strdup (TOK_SPACE);
           list_push_back (t->tokens, tok);
           input += len;
           continue;
@@ -103,7 +104,10 @@ tokenize (sh_tokenizer *t, char *input)
         continue;
       if (check_token (t, &input, tok, SH_T_REDIR_S_L, TOK_REDIR_S_L))
         continue;
+      if (check_token (t, &input, tok, SH_T_AMP, TOK_AMP))
+        continue;
 
+      char *str;
       if (get_word (input, &str, &len, pos) != SH_OK)
         {
           free (tok);

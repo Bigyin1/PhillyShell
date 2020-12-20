@@ -1,8 +1,8 @@
 #include "exec.h"
 #include "../builtins/builtins.h"
-#include "../errors/errors.h"
 #include "exec_args.h"
 #include "fs.h"
+#include "job_control.h"
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -71,43 +71,78 @@ apply_cmd_redirs (List *redirs)
     }
 }
 
-int
+void
+restore_process_state ()
+{
+  signal (SIGINT, SIG_DFL);
+  signal (SIGQUIT, SIG_DFL);
+  signal (SIGTSTP, SIG_DFL);
+  signal (SIGTTIN, SIG_DFL);
+  signal (SIGTTOU, SIG_DFL);
+}
+
+void
 exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp[2], int out[2])
 {
-  int cmd_cd = -1;
-  char **args = args_to_str_arr (cn->name, cn->args);
+  char **argv = args_to_str_arr (cn->name, cn->args);
 
   if (strcmp (cn->name, CMD_EXIT) == 0)
     sh_builtin_exit ();
   if (strcmp (cn->name, CMD_CD) == 0)
-    cmd_cd = sh_builtin_cd (args, e->env);
+    {
+      sh_builtin_cd (argv, e->env);
+      return;
+    }
+  if (strcmp (cn->name, CMD_JOBS) == 0)
+    {
+      sh_builtin_jobs (e);
+      return;
+    }
 
   int pid = fork ();
   if (pid < 0)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      if (cmd_cd != -1)
-        exit (
-            cmd_cd); // exit immediately if cd was called, with cd exit status
+      if (inp == NULL)
+        {
+          setpgid (0, 0);
+          tcsetpgrp (0, getpid ());
+        } // create new process group for first process in pipeline
+      else
+        setpgid (0, e->curr_job->pgid);
+
+      restore_process_state ();
       apply_cmd_redirs (cn->redirs);
       apply_cmd_pipe_io (inp, out);
 
-      if (strcmp (cn->name, CMD_ECHO) == 0) sh_builtin_echo(args);
-
+      if (strcmp (cn->name, CMD_ECHO) == 0)
+        sh_builtin_echo (argv);
+      // printf("tcgetpgrp: %d; curr pgid: %d\n", tcgetpgrp(1), getpgid(0));
       char *path = find_exe_path (e, cn->name);
       if (!path)
-        exit(EXIT_FAILURE);
-      if (execve (path, args, e->kv_env) < 0)
-        exit(EXIT_FAILURE);
+        exit (EXIT_FAILURE);
+      if (execve (path, argv, e->kv_env) < 0)
+        exit (EXIT_FAILURE);
     }
-  free_string_arr (args);
-  return pid;
+
+  process *curr_proc = calloc (1, sizeof (process));
+  if (!curr_proc)
+    exit (EXIT_FAILURE);
+  curr_proc->pid = pid;
+
+  if (inp == NULL)
+    {
+      setpgid (pid, pid);
+      tcsetpgrp (0, pid);
+      e->curr_job->pgid = pid;
+    }
+
+  list_push_back (e->curr_job->procs, curr_proc);
+  free_string_arr (argv);
 }
 
-// returns number of processes that were forked by this and all subsequent
-// pipes. Returns 0 on error
-int
+void
 exec_pipeline (sh_executor *e, bin_op_node *pn, int inp[2])
 {
   int thin_red_line[2];
@@ -119,32 +154,16 @@ exec_pipeline (sh_executor *e, bin_op_node *pn, int inp[2])
     errors_fatal ("fsh: unexpected parser error\n");
   node_type r = get_node_type (pn->right);
 
-  int res = exec_simple_cmd (e, pn->left, inp, thin_red_line);
+  exec_simple_cmd (e, pn->left, inp, thin_red_line);
   cleanup_pipe_fds (inp);
-  if (res == 0)
-    {
-      cleanup_pipe_fds (thin_red_line);
-      return 0;
-    }
 
   if (r == NODE_PIPE)
+    exec_pipeline (e, pn->right, thin_red_line);
+  else
     {
-      int procs = exec_pipeline (e, pn->right, thin_red_line);
-      if (procs == 0)
-        return 0;
-      return procs + 1;
+      exec_simple_cmd (e, pn->right, thin_red_line, NULL);
+      cleanup_pipe_fds (thin_red_line);
     }
-
-  int last_pid = exec_simple_cmd (e, pn->right, thin_red_line, NULL);
-  cleanup_pipe_fds (thin_red_line);
-  if (last_pid == 0)
-    return 0;
-
-  int wstatus;
-  if (waitpid (last_pid, &wstatus, 0) == -1)
-    errors_fatal ("fsh: waitpid failed\n");
-  e->last_retcode = WEXITSTATUS (wstatus);
-  return 1;
 }
 
 sh_ecode
@@ -152,62 +171,52 @@ exec_ast (sh_executor *e, sh_ast_node root)
 {
   node_type t = get_node_type (root);
   if (t == NODE_CMD)
-    {
-      int pid = exec_simple_cmd (e, root, NULL, NULL);
-      if (!pid)
-        return SH_ERR;
-
-      int wstatus;
-      if (waitpid (pid, &wstatus, 0) == -1)
-        errors_fatal ("fsh: waitpid failed\n");
-      e->last_retcode = WEXITSTATUS (wstatus);
-    }
+    exec_simple_cmd (e, root, NULL, NULL);
   if (t == NODE_PIPE)
-    {
-      int to_wait = exec_pipeline (e, root, NULL);
-      for (int i = 0; i < to_wait; ++i)
-        wait (NULL);
-    }
-
+    exec_pipeline (e, root, NULL);
+  wait_for_job (e->curr_job);
   return SH_OK;
 }
 
-void
-exec_init (sh_executor *e, Slice *path, HTable *vars)
-{
-  e->kv_env = env_to_kv (vars);
-  e->env = vars;
-  e->path_var = path;
-}
-
-void
-exec_free (sh_executor *e)
-{
-  free_string_arr (e->kv_env);
-}
-
 sh_ecode
-sh_exec (Shell *sh)
+execute_cmd (sh_executor *e, char *cmd)
 {
-  sh_tokenizer t = { 0 };
-  sh_parser p = { 0 };
-  sh_executor e = { 0 };
+  sh_tokenizer t;
+  sh_parser p;
+  sh_ecode err;
 
-  if (tokenize (&t, sh->cmd_buf) != SH_OK)
+  e->kv_env = env_to_kv (e->env);
+  if (tokenize (&t, cmd) != SH_OK)
+    return SH_ERR;
+#ifdef DEBUG
+  tokenizer_dump(&t, stdout);
+#endif
+
+  if (parse_tokens (&p, &t) != SH_OK)
+    return SH_ERR;
+#ifdef DEBUG
+  ast_dump(p.root_node, stdout);
+  printf("\n");
+#endif
+
+  job *curr_job = calloc (1, sizeof (struct job));
+  if (!curr_job)
     return SH_ERR;
 
-  p.tok = &t;
-  p.vars = sh->env;
-  if (parse_tokens (&p) != SH_OK)
-    return SH_ERR;
+  if (new_list (&curr_job->procs) != S_OK)
+    errors_fatal (MEM_ERROR);
 
-  exec_init (&e, sh->path, sh->env);
-  //  ast_dump (p.root_node, stdout); // for debug
-  //  fflush (stdout);
-  sh_ecode err = exec_ast (&e, p.root_node);
+  e->curr_job = curr_job;
+  list_push_back (e->active_jobs, curr_job);
+  e->curr_job->command = cmd;
 
+  err = exec_ast (e, p.root_node);
+
+  // printf("job [%d] (%s) done\n", e->curr_job->pgid, e->curr_job->command);
+  list_filter_mod (e->active_jobs, job_delete_func);
   parser_free (&p);
-  exec_free (&e);
+  free_string_arr (e->kv_env);
 
+  e->curr_job = NULL;
   return err;
 }
