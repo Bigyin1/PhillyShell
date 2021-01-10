@@ -13,14 +13,14 @@ if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
 endif()
 
 add_executable(${SHELL_EXE_NAME} main.c)
-add_subdirectory(libstructs)
 
+add_subdirectory(libstructs)
 add_subdirectory(src)
 
 target_link_libraries(${SHELL_EXE_NAME} ${SHELL_LIB})
 
-enable_testing()
 
+enable_testing()
 add_test(NAME fsh_test
         COMMAND python ${PROJECT_SOURCE_DIR}/tests/fsh_test.py
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

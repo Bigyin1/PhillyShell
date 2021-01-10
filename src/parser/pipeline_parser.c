@@ -1,46 +1,48 @@
 #include "pipeline_parser.h"
-#include "../errors/errors.h"
 #include "cmd_parser.h"
 #include "utils.h"
 
 void *
-pipeline_node_init (void *left, void *right)
+pipeline_node_init ()
 {
-  bin_op_node *bin_node = calloc (1, sizeof (bin_op_node));
-  if (!bin_node)
+  pipeline_node *pn = calloc (1, sizeof (pipeline_node));
+  if (!pn)
     errors_fatal (MEM_ERROR);
-  bin_node->type = NODE_PIPE;
-  bin_node->token = SH_T_PIPE;
-  bin_node->left = left;
-  bin_node->right = right;
-  return bin_node;
+  pn->type = NODE_PIPE;
+  if (new_list (&pn->procs) != S_OK)
+    errors_fatal (MEM_ERROR);
+  return pn;
 }
 
 sh_ecode
-parse_pipeline (sh_parser *p, void **res)
+parse_pipeline (sh_parser *p, pipeline_node **res)
 {
-  void *node = NULL;
+  pipeline_node *pn = pipeline_node_init ();
   sh_ecode err;
 
-  err = parse_simple_cmd (p, (cmd_node **)&node);
+  cmd_node *cn;
+  err = parse_simple_cmd (p, &cn);
   if (err != SH_OK)
     {
-      parser_free (p);
+      ast_free(pn);
       return err;
     }
+  list_push_back (pn->procs, cn);
 
   if (p->curr_token->type == SH_T_PIPE)
     {
       eat_token (p, SH_T_PIPE);
 
-      void *right = NULL;
-      if ((err = parse_pipeline (p, &right)) != SH_OK)
+      err = parse_simple_cmd (p, &cn);
+      if (err != SH_OK)
+        {
+          ast_free(pn);
           return err;
-      node = pipeline_node_init (node, right);
+        }
+      list_push_back (pn->procs, cn);
       eat_spaces (p);
     }
-  *res = node;
 
-
+  *res = pn;
   return SH_OK;
 }

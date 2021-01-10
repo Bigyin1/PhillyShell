@@ -4,13 +4,15 @@ set(source_files
         executor/exec.c
         executor/fs.c
         executor/exec_args.c
-        executor/job_control.c
+        executor/jobs.c
         errors/errors.c
         parser/pipeline_parser.c
         parser/cmd_parser.c
         parser/utils.c
         parser/parser.c
         parser/parser_free.c
+        parser/if_list_parser.c
+        parser/list_parser.c
         tokenizer/cmd_tokenizer.c
         builtins/echo.c
         builtins/exit.c

@@ -34,7 +34,7 @@ process_redir (sh_parser *p, cmd_node *cn)
   int first_fd = -1;
   if (p->curr_token->type & SH_T_WORD)
     {
-      if (!is_redir_token ((peek_next_token_type (p))))
+      if (!is_redir_token (peek_next_token_type (p)))
         return SH_OK;
       if (!is_fd (p->curr_token->val))
         return SH_OK;

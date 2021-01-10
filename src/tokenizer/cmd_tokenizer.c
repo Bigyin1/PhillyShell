@@ -88,6 +88,10 @@ tokenize (sh_tokenizer *t, char *input)
           input += len;
           continue;
         }
+      if (check_token (t, &input, tok, SH_T_AND_IF, TOK_AND_IF))
+        continue;
+      if (check_token (t, &input, tok, SH_T_OR_IF, TOK_OR_IF))
+        continue;
       if (check_token (t, &input, tok, SH_T_PIPE, TOK_PIPE))
         continue;
       if (check_token (t, &input, tok, SH_T_SEMICOLON, TOK_SEMICOLON))
@@ -133,7 +137,7 @@ tokenizer_dump (sh_tokenizer *t, FILE *f)
   while (n)
     {
       sh_token *tok = n->data;
-      fprintf (f, "<%d>%s ", tok->type, tok->val);
+      fprintf (f, "(tok)%s ", tok->val);
       n = n->next;
     }
   fprintf (f, "\n");

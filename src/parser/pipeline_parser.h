@@ -4,6 +4,6 @@
 #include "../tokenizer/cmd_tokenizer.h"
 #include "parser.h"
 
-sh_ecode parse_pipeline (sh_parser *p, void **res);
+sh_ecode parse_pipeline (sh_parser *p, pipeline_node **res);
 
 #endif // PHILLYSHELL_PIPELINE_PARSER_H

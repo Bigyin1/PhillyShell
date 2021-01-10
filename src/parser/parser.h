@@ -9,9 +9,10 @@ typedef void *sh_ast_node;
 
 typedef enum e_node_type
 {
-  NODE_BOOL = 0,
+  NODE_IF = 0,
   NODE_CMD = 1,
   NODE_PIPE = 2,
+  NODE_SEP = 3,
 } node_type;
 
 struct s_redir
@@ -29,17 +30,30 @@ typedef struct s_cmd_node
   char *name;
   List *args;
   List *redirs;
-  bool is_background;
 } cmd_node;
+
+typedef struct s_pipeline_node
+{
+  node_type type;
+  List *procs;
+} pipeline_node;
 
 typedef struct s_bin_op_node
 {
   node_type type;
-  sh_token_type token;
+  sh_token *token;
   sh_ast_node left;
   sh_ast_node right;
 
 } bin_op_node;
+
+typedef struct s_list_node
+{
+  node_type type;
+  sh_token *token;
+  struct s_list_node *next;
+  sh_ast_node *cont;
+} list_node;
 
 typedef struct s_parser
 {
@@ -52,6 +66,7 @@ typedef struct s_parser
 
 sh_ecode parse_tokens (sh_parser *p, sh_tokenizer *t);
 void parser_free (sh_parser *p);
+void ast_free (sh_ast_node node);
 node_type get_node_type (sh_ast_node node);
 void ast_dump (sh_ast_node node, FILE *f);
 

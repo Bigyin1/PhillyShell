@@ -2,25 +2,23 @@
 #include "../builtins/builtins.h"
 #include "exec_args.h"
 #include "fs.h"
-#include "job_control.h"
+#include "jobs.h"
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
 void
-apply_cmd_pipe_io (int *inp, int *out)
+apply_cmd_pipe_io (int inp, int out)
 {
-  if (inp)
+  if (inp != STDIN_FILENO)
     {
-      close (inp[1]);
-      dup2 (inp[0], STDIN_FILENO);
-      close (inp[0]);
+      dup2 (inp, STDIN_FILENO);
+      close (inp);
     }
-  if (out)
+  if (out != STDOUT_FILENO)
     {
-      close (out[0]);
-      dup2 (out[1], STDOUT_FILENO);
-      close (out[1]);
+      dup2 (out, STDOUT_FILENO);
+      close (out);
     }
 }
 
@@ -81,11 +79,18 @@ restore_process_state ()
   signal (SIGTTOU, SIG_DFL);
 }
 
-void
-exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp[2], int out[2])
+bool
+is_non_fork_builtin (cmd_node *cn)
 {
-  char **argv = args_to_str_arr (cn->name, cn->args);
+  if (strcmp (cn->name, CMD_EXIT) == 0 || strcmp (cn->name, CMD_CD) == 0
+      || strcmp (cn->name, CMD_JOBS) == 0)
+    return true;
+  return false;
+}
 
+void
+exec_non_fork_builtin (sh_executor *e, cmd_node *cn, char **argv)
+{
   if (strcmp (cn->name, CMD_EXIT) == 0)
     sh_builtin_exit ();
   if (strcmp (cn->name, CMD_CD) == 0)
@@ -98,13 +103,25 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp[2], int out[2])
       sh_builtin_jobs (e);
       return;
     }
+}
+
+void
+exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out)
+{
+  char **argv = args_to_str_arr (cn->name, cn->args);
+
+  if (is_non_fork_builtin (cn))
+    {
+      exec_non_fork_builtin (e, cn, argv);
+      return;
+    }
 
   int pid = fork ();
   if (pid < 0)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      if (inp == NULL)
+      if (inp == STDIN_FILENO)
         {
           setpgid (0, 0);
           tcsetpgrp (0, getpid ());
@@ -118,7 +135,6 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp[2], int out[2])
 
       if (strcmp (cn->name, CMD_ECHO) == 0)
         sh_builtin_echo (argv);
-      // printf("tcgetpgrp: %d; curr pgid: %d\n", tcgetpgrp(1), getpgid(0));
       char *path = find_exe_path (e, cn->name);
       if (!path)
         exit (EXIT_FAILURE);
@@ -126,56 +142,125 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp[2], int out[2])
         exit (EXIT_FAILURE);
     }
 
-  process *curr_proc = calloc (1, sizeof (process));
-  if (!curr_proc)
-    exit (EXIT_FAILURE);
-  curr_proc->pid = pid;
-
-  if (inp == NULL)
+  if (inp == STDIN_FILENO)
     {
       setpgid (pid, pid);
       tcsetpgrp (0, pid);
       e->curr_job->pgid = pid;
     }
 
-  list_push_back (e->curr_job->procs, curr_proc);
+  add_new_proc_to_job (e->curr_job, pid);
   free_string_arr (argv);
 }
 
-void
-exec_pipeline (sh_executor *e, bin_op_node *pn, int inp[2])
+int
+exec_pipeline (sh_executor *e, pipeline_node *pn)
 {
-  int thin_red_line[2];
+  int inp;
+  int out;
+  int p[2];
 
-  if (pipe (thin_red_line) == -1)
-    errors_fatal ("fsh: pipe failed\n");
-  node_type l = get_node_type (pn->left);
-  if (l != NODE_CMD)
-    errors_fatal ("fsh: unexpected parser error\n");
-  node_type r = get_node_type (pn->right);
+  e->curr_job = new_job ();
 
-  exec_simple_cmd (e, pn->left, inp, thin_red_line);
-  cleanup_pipe_fds (inp);
-
-  if (r == NODE_PIPE)
-    exec_pipeline (e, pn->right, thin_red_line);
-  else
+  Node *n;
+  if (list_get_head (pn->procs, &n) != S_OK)
+    errors_fatal ("fsh: unexpected parser error");
+  if (list_size (pn->procs) == 1)
     {
-      exec_simple_cmd (e, pn->right, thin_red_line, NULL);
-      cleanup_pipe_fds (thin_red_line);
+      exec_simple_cmd (e, n->data, STDIN_FILENO, STDOUT_FILENO);
+      return get_job_exit_code (e->curr_job);
     }
+
+  inp = STDIN_FILENO;
+  for (; n; n = n->next)
+    {
+      cmd_node *cn = n->data;
+
+      if (!n->next)
+        out = STDOUT_FILENO;
+      else if (pipe (p) == 0)
+        out = p[1];
+      else
+        errors_fatal ("fsh: pipe failed\n");
+
+      exec_simple_cmd (e, cn, inp, out);
+
+      if (out != STDOUT_FILENO)
+        close (out);
+      if (inp != STDIN_FILENO)
+        close (inp);
+
+      inp = p[0];
+    }
+  return get_job_exit_code (e->curr_job);
 }
 
-sh_ecode
+int
+exec_if_list (sh_executor *e, bin_op_node *bn)
+{
+  int status_left;
+  if (get_node_type (bn->left) == NODE_PIPE)
+    status_left = exec_pipeline (e, bn->left);
+  else
+    status_left = exec_if_list (e, bn->left);
+
+  if (bn->token->type == SH_T_AND_IF && status_left != 0)
+    return status_left;
+  if (bn->token->type == SH_T_OR_IF && status_left == 0)
+    return status_left;
+
+  int status_right;
+  if (get_node_type (bn->right) == NODE_PIPE)
+    status_right = exec_pipeline (e, bn->right);
+  else
+    status_right = exec_if_list (e, bn->right);
+
+  if (bn->token->type == SH_T_AND_IF)
+    return status_left && status_right;
+  if (bn->token->type == SH_T_OR_IF)
+    return status_left || status_right;
+
+  errors_fatal ("fsh: unexpected error\n");
+}
+
+int exec_ast (sh_executor *e, sh_ast_node root);
+
+int
+exec_list (sh_executor *e, list_node *ln)
+{
+  int status;
+
+  status = exec_ast (e, ln->cont);
+  if (ln->next)
+    status = exec_list (e, ln->next) && status;
+
+  return status;
+}
+
+int
 exec_ast (sh_executor *e, sh_ast_node root)
 {
   node_type t = get_node_type (root);
-  if (t == NODE_CMD)
-    exec_simple_cmd (e, root, NULL, NULL);
+  int status;
+
+  if (t == NODE_SEP)
+    status = exec_list (e, root);
+  if (t == NODE_IF)
+    status = exec_if_list (e, root);
   if (t == NODE_PIPE)
-    exec_pipeline (e, root, NULL);
-  wait_for_job (e->curr_job);
-  return SH_OK;
+    status = exec_pipeline (e, root);
+
+  return status;
+}
+
+void
+debug_info (sh_tokenizer *t, sh_parser *p)
+{
+#ifdef DEBUG
+  tokenizer_dump (t, stdout);
+  ast_dump (p->root_node, stdout);
+  fprintf (stdout, "\n");
+#endif
 }
 
 sh_ecode
@@ -188,35 +273,17 @@ execute_cmd (sh_executor *e, char *cmd)
   e->kv_env = env_to_kv (e->env);
   if (tokenize (&t, cmd) != SH_OK)
     return SH_ERR;
-#ifdef DEBUG
-  tokenizer_dump(&t, stdout);
-#endif
 
   if (parse_tokens (&p, &t) != SH_OK)
     return SH_ERR;
-#ifdef DEBUG
-  ast_dump(p.root_node, stdout);
-  printf("\n");
-#endif
 
-  job *curr_job = calloc (1, sizeof (struct job));
-  if (!curr_job)
-    return SH_ERR;
-
-  if (new_list (&curr_job->procs) != S_OK)
-    errors_fatal (MEM_ERROR);
-
-  e->curr_job = curr_job;
-  list_push_back (e->active_jobs, curr_job);
-  e->curr_job->command = cmd;
+  debug_info (&t, &p);
 
   err = exec_ast (e, p.root_node);
 
-  // printf("job [%d] (%s) done\n", e->curr_job->pgid, e->curr_job->command);
-  list_filter_mod (e->active_jobs, job_delete_func);
   parser_free (&p);
   free_string_arr (e->kv_env);
+  job_delete_func (e->curr_job);
 
-  e->curr_job = NULL;
   return err;
 }

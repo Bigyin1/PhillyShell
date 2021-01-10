@@ -1,7 +1,7 @@
 #ifndef PHILLYSHELL_EXEC_H
 #define PHILLYSHELL_EXEC_H
 #include "../parser/parser.h"
-#include "job_control.h"
+#include "jobs.h"
 #include <structs/slice.h>
 
 typedef struct s_sh_executor
