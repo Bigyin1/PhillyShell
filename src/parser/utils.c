@@ -26,7 +26,7 @@ eat_spaces (sh_parser *p)
 sh_token_type
 peek_next_token_type (sh_parser *p)
 {
-  sh_token *t = (sh_token *)p->tok->_curr;
+  sh_token *t = (sh_token *)p->tok->_curr->data;
   return t->type;
 }
 
@@ -120,4 +120,14 @@ ast_dump (sh_ast_node node, FILE *f)
 
   if (type == NODE_PIPE)
     dump_pipeline (node, f);
+}
+
+
+char *node_to_str(char *cmd, uint s, uint e) {
+  char *r = malloc(e - s + 1);
+  if (!r)
+      errors_fatal(MEM_ERROR);
+  strncpy(r, cmd + s, e - s);
+  r[e-s] = 0;
+  return r;
 }

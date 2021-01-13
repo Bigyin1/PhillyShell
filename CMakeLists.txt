@@ -7,7 +7,6 @@ set(SHELL_LIB shell)
 
 if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
     add_compile_definitions(DEBUG)
-    #target_compile_definitions(${SHELL_EXE_NAME} PUBLIC DEBUG)
     add_compile_options("SHELL:-fno-omit-frame-pointer" "SHELL:-fsanitize=address")
     add_link_options("SHELL:-fsanitize=address")
 endif()

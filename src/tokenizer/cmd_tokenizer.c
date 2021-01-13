@@ -66,18 +66,17 @@ check_token (sh_tokenizer *t, char **input, sh_token *tok,
 sh_ecode
 tokenize (sh_tokenizer *t, char *input)
 {
-  int pos = -1;
   sh_token *tok;
   size_t len;
+  char *inp_start = input;
 
   if (new_list (&t->tokens) != S_OK)
     errors_fatal (MEM_ERROR);
   t->_curr = NULL;
   while (*input)
     {
-      ++pos;
       tok = calloc (1, sizeof (sh_token)); // TODO chek error
-      tok->pos = pos;
+      tok->pos = input - inp_start;
 
       len = strspn (input, spaces);
       if (len != 0)
@@ -112,7 +111,7 @@ tokenize (sh_tokenizer *t, char *input)
         continue;
 
       char *str;
-      if (get_word (input, &str, &len, pos) != SH_OK)
+      if (get_word (input, &str, &len, input - inp_start) != SH_OK)
         {
           free (tok);
           list_free (t->tokens, token_free);
@@ -125,6 +124,7 @@ tokenize (sh_tokenizer *t, char *input)
     }
   tok = calloc (1, sizeof (sh_token));
   tok->type = SH_T_EOF;
+  tok->pos = input - inp_start;
   list_push_back (t->tokens, tok);
   return SH_OK;
 }
@@ -137,7 +137,7 @@ tokenizer_dump (sh_tokenizer *t, FILE *f)
   while (n)
     {
       sh_token *tok = n->data;
-      fprintf (f, "(tok)%s ", tok->val);
+      fprintf (f, "(tok %d)%s ", tok->type, tok->val);
       n = n->next;
     }
   fprintf (f, "\n");

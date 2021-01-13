@@ -20,6 +20,8 @@ parse_pipeline (sh_parser *p, pipeline_node **res)
   pipeline_node *pn = pipeline_node_init ();
   sh_ecode err;
 
+  uint s = p->curr_token->pos;
+
   cmd_node *cn;
   err = parse_simple_cmd (p, &cn);
   if (err != SH_OK)
@@ -42,6 +44,9 @@ parse_pipeline (sh_parser *p, pipeline_node **res)
       list_push_back (pn->procs, cn);
       eat_spaces (p);
     }
+
+  uint e = p->curr_token->pos;
+  pn->command = node_to_str(p->cmd, s, e);
 
   *res = pn;
   return SH_OK;

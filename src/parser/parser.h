@@ -30,12 +30,15 @@ typedef struct s_cmd_node
   char *name;
   List *args;
   List *redirs;
+
+  char *command;
 } cmd_node;
 
 typedef struct s_pipeline_node
 {
   node_type type;
   List *procs;
+  char *command;
 } pipeline_node;
 
 typedef struct s_bin_op_node
@@ -57,6 +60,7 @@ typedef struct s_list_node
 
 typedef struct s_parser
 {
+  char *cmd;
   // to be freed
   sh_tokenizer *tok;
   sh_ast_node root_node;

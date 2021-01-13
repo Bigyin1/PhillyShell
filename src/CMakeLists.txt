@@ -18,6 +18,8 @@ set(source_files
         builtins/exit.c
         builtins/cd.c
         builtins/jbs.c
+        builtins/bg.c
+        builtins/fg.c
         tty/tty.c)
 
 add_library(${SHELL_LIB} ${source_files})

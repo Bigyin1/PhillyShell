@@ -10,8 +10,13 @@ typedef struct s_sh_executor
   HTable *env;
   Slice *path_var;
 
+  // job control
+  bool bg_fg_enabled;
+
   job *curr_job;
+
   List *active_jobs;
+  uint last_jb_id;
 } sh_executor;
 
 sh_ecode execute_cmd (sh_executor *e, char *cmd);

@@ -118,6 +118,8 @@ parse_simple_cmd (sh_parser *p, cmd_node **res)
 {
   cmd_node *cn;
 
+  uint s = p->curr_token->pos;
+
   cn = create_cmd_node (res);
   eat_spaces (p);
 
@@ -135,6 +137,9 @@ parse_simple_cmd (sh_parser *p, cmd_node **res)
       if (p->curr_token->type == SH_T_WORD)
         process_word (p, cn);
     }
+
+  uint e = p->curr_token->pos;
+  cn->command = node_to_str(p->cmd, s, e);
 
   return SH_OK;
 }

@@ -46,6 +46,8 @@ shell_init (Shell *sh)
 
   if (config_init (sh->cfg) != SH_OK)
     return SH_ERR;
+
+  sh->e.last_jb_id = 0;
   return SH_OK;
 }
 
@@ -62,10 +64,12 @@ main_loop (Shell *sh)
   while (1)
     {
       shell_print_prompt (sh);
-      if (fgets (sh->cmd_buf, MAX_INPUT, stdin) == NULL) {
-        perror("fsh:");
-        return SH_ERR;
+      if (fgets (sh->cmd_buf, MAX_INPUT, stdin) == NULL)
+        {
+          perror ("fsh:");
+          return SH_ERR;
         }
+      sh->cmd_buf[strlen(sh->cmd_buf)-1] = 0;
       execute_cmd (&sh->e, sh->cmd_buf);
     }
 }
