@@ -11,7 +11,8 @@ int
 sh_builtin_bg (sh_executor *e, char **argv)
 {
 
-  if (!e->bg_fg_enabled) // set up in exec_pipeline
+  if (!e->bg_fg_enabled) /* set up in exec_pipeline (try to run "bg | command"
+                          in bash) */
     {
       printf ("fsh: bg: job control is off\n");
       return EXIT_FAILURE;
@@ -30,10 +31,11 @@ sh_builtin_bg (sh_executor *e, char **argv)
         continue;
       if (job_is_stopped (j))
         job_continue (j, false);
-      else {
-          printf("fsh: bg: task %d already running in background\n", job_id);
+      else
+        {
+          printf ("fsh: bg: task %d already running in background\n", job_id);
           return EXIT_FAILURE;
-      }
+        }
       return EXIT_SUCCESS;
     }
 

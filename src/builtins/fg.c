@@ -11,7 +11,8 @@ int
 sh_builtin_fg (sh_executor *e, char **argv)
 {
 
-  if (!e->bg_fg_enabled) // set up in exec_pipeline
+  if (!e->bg_fg_enabled) /* set up in exec_pipeline (try to run "fg | command"
+                          in bash) */
     {
       printf ("fsh: fg: job control is off\n");
       return EXIT_FAILURE;
@@ -34,8 +35,9 @@ sh_builtin_fg (sh_executor *e, char **argv)
         job_push_to_foreground (j);
 
       job_delete_func (
-          e->curr_job); // curr_job has no jobs yet and will be deleted and
-                        // swapped to designated job(job_id)
+          e->curr_job); /* curr_job has no jobs yet (created for single fg
+                         command, which will not be added to his job) and will
+                         be deleted and swapped to designated job(job_id) */
       e->curr_job = j;
       e->last_jb_id = get_last_job_id (e->active_jobs);
       return EXIT_SUCCESS;
