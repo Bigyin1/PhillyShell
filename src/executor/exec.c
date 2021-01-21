@@ -108,8 +108,7 @@ exec_non_fork_builtin (sh_executor *e, cmd_node *cn, char **argv)
 }
 
 bool
-exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg,
-                 bool *swap)
+exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
 {
   char **argv = args_to_str_arr (cn->name, cn->args);
 
@@ -118,11 +117,8 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg,
       int status = exec_non_fork_builtin (e, cn, argv);
       free_string_arr (argv);
       if (status == EXIT_SUCCESS && strcmp (cn->name, CMD_FG) == 0)
-        {
-          *swap = true;
-          return true; /* at this point curr_job is swapped to job_spec sent to
-                        fg */
-        }
+        return true; /* at this point curr_job is swapped to job_spec sent to
+                      fg */
       add_new_non_fork_proc_to_job (e->curr_job, status, cn->command);
       return true;
     }
@@ -132,12 +128,13 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg,
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      if (inp == STDIN_FILENO)
+      if (e->curr_job->pgid == -1) // if no dedicated pgroup
         {
           setpgid (0, 0);
           if (!bg)
             tcsetpgrp (0, getpid ());
-        } // create new process group for first process in pipeline
+          e->curr_job->pgid = pid;
+        }
       else
         setpgid (0, e->curr_job->pgid);
 
@@ -154,7 +151,7 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg,
         exit (EXIT_FAILURE);
     }
 
-  if (inp == STDIN_FILENO)
+  if (e->curr_job->pgid == -1)
     {
       setpgid (pid, pid);
       if (!bg)
@@ -173,14 +170,14 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
   int inp;
   int out;
   int p[2];
-  bool is_curr_job_swapped = false;
 
-  e->curr_job = new_job (++e->last_jb_id, pn->command, bg);
+  e->curr_job = new_job (++e->last_jb_id, pn->command, bg, e->in_subshell);
 
   e->bg_fg_enabled = true;
-  if (list_size (pn->procs) > 1)
-    e->bg_fg_enabled = false; /* disabling bg an fg utils in case of starting
-                               pipeline of > 1 procs */
+  if (list_size (pn->procs) > 1 || bg || e->in_subshell)
+    e->bg_fg_enabled
+        = false; /* disabling bg an fg utils in case of starting
+                  pipeline of > 1 procs or in background oe in subshell*/
 
   Node *n;
   if (list_get_head (pn->procs, &n) != S_OK)
@@ -198,8 +195,7 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
       else
         errors_fatal ("fsh: pipe failed\n");
 
-      bool non_fork
-          = exec_simple_cmd (e, cn, inp, out, bg, &is_curr_job_swapped);
+      bool non_fork = exec_simple_cmd (e, cn, inp, out, bg);
 
       if (out != STDOUT_FILENO)
         close (out);
@@ -207,19 +203,13 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
         close (inp);
 
       inp = p[0];
-      if (non_fork)
+      if (non_fork && n->next)
         {
           close (inp);
           inp = STDIN_FILENO;
         }
     }
 
-#ifdef DEBUG
-  printf ("%d\n", e->curr_job->pgid);
-#endif
-
-  if (is_curr_job_swapped)
-    return get_job_exit_code (e->curr_job);
   if (bg)
     printf ("[%d] %d\n", e->curr_job->id, e->curr_job->pgid);
   add_new_job_to_list (e->active_jobs, e->curr_job);
@@ -254,15 +244,44 @@ exec_if_list (sh_executor *e, bin_op_node *bn)
   errors_fatal ("fsh: unexpected error\n");
 }
 
-int
-exec_if_list_or_pipe (sh_executor *e, sh_ast_node root, bool bg)
+void
+if_list_subshell (sh_executor *e, list_node *ln)
 {
-  node_type t = get_node_type (root);
+  job *subshell_job = new_job (++e->last_jb_id, ln->command, true, false);
+
+  int pid = fork ();
+  if (pid < 0)
+    errors_fatal ("fsh: fork failed\n");
+  if (pid == 0)
+    {
+      e->last_jb_id = 0;
+      e->in_subshell = true;
+      setpgid (0, 0);
+      restore_process_state ();
+      exit (exec_if_list (e, (bin_op_node *)ln->cont));
+    }
+  setpgid (pid, pid);
+  subshell_job->pgid = pid;
+  add_new_proc_to_job (subshell_job, pid, NULL);
+  add_new_job_to_list (e->active_jobs, subshell_job);
+}
+
+int
+exec_if_list_or_pipe (sh_executor *e, list_node *ln, bool bg)
+{
+  node_type t = get_node_type (ln->cont);
   int status;
   if (t == NODE_IF)
-    status = exec_if_list (e, root);
+    {
+      if (bg)
+        {
+          if_list_subshell (e, ln);
+          return EXIT_SUCCESS;
+        }
+      status = exec_if_list (e, (bin_op_node *)ln->cont);
+    }
   if (t == NODE_PIPE)
-    status = exec_pipeline (e, root, bg);
+    status = exec_pipeline (e, (pipeline_node *)ln->cont, bg);
 
   return status;
 }
@@ -276,7 +295,7 @@ exec_list (sh_executor *e, list_node *ln)
   if (ln->token->type == SH_T_AMP) // if &
     bg = true;
 
-  status = exec_if_list_or_pipe (e, ln->cont, bg);
+  status = exec_if_list_or_pipe (e, ln, bg);
   if (ln->next)
     status = exec_list (e, ln->next) && status;
 

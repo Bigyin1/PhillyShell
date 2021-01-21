@@ -67,11 +67,15 @@ update_job (job *j, pid_t pid, int status)
 void
 wait_for_job (job *j, bool no_block)
 {
-  do
+  int options = WSTOPPED;
+  if (no_block)
+    options |= WNOHANG;
+  if (j->is_subshell)
+    options = 0; // in subshell wait only for terminated
+  while (job_any_running_procs (j))
     {
       int status;
-      pid_t p = waitpid (-j->pgid, &status,
-                         no_block ? WSTOPPED | WNOHANG : WSTOPPED);
+      pid_t p = waitpid (-j->pgid, &status, options);
       if (p == 0)
         break;
       if (p == -1)
@@ -81,16 +85,14 @@ wait_for_job (job *j, bool no_block)
         }
       update_job (j, p, status);
     }
-  while (job_any_running_procs (j));
 }
 
 int
 get_job_exit_code (job *j)
 {
-  if (job_any_running_procs (j))
-    wait_for_job (j, false);
-
-  tcsetpgrp (0, getpgrp ());
+  wait_for_job (j, false);
+  if (!j->is_subshell)
+    tcsetpgrp (0, getpgrp ());
   if (job_is_stopped (j))
     {
       j->is_background = true;
@@ -98,8 +100,6 @@ get_job_exit_code (job *j)
       return EXIT_SUCCESS;
     }
 
-  j->reported
-      = true; // reported, cause this job was foreground and was just completed
   Node *n;
   list_get_head (j->procs, &n);
   process *p = n->data;
@@ -117,10 +117,8 @@ update_bg_jobs (List *jl)
         continue;
       wait_for_job (j, true);
       if (job_is_completed (j))
-        {
-          j->reported = true;
           printf ("[%d]\tCompleted\n", j->id);
-        }
+
     }
   list_filter_mod (jl, job_delete_func);
 }
@@ -161,7 +159,7 @@ get_last_job_id (List *jl)
 }
 
 job *
-new_job (uint id, char *cmd, bool bg)
+new_job (uint id, char *cmd, bool bg, bool subshell)
 {
   job *j = calloc (1, sizeof (struct job));
   if (!j)
@@ -170,6 +168,12 @@ new_job (uint id, char *cmd, bool bg)
   if (new_list (&j->procs) != S_OK)
     errors_fatal (MEM_ERROR);
 
+  j->pgid = -1; // no pgid for now
+  if (subshell)
+    {
+      j->pgid = getpid ();
+      j->is_subshell = true;
+    }
   j->is_background = bg;
   j->id = id;
   j->command = cmd;
@@ -223,6 +227,13 @@ add_new_non_fork_proc_to_job (job *j, int status, char *cmd)
 void
 add_new_job_to_list (List *jl, job *j)
 {
+  Node *curr = NULL;
+  for (list_get_head (jl, &curr); curr; curr = curr->next)
+    {
+      job *cj = (job *)curr->data;
+      if (cj->id == j->id)
+        return;
+    }
   if (list_push_back (jl, j) != S_OK)
     errors_fatal (MEM_ERROR);
 }

@@ -10,11 +10,11 @@ typedef struct s_sh_executor
   HTable *env;
   Slice *path_var;
 
+  bool in_subshell;
   // job control
   bool bg_fg_enabled;
 
   job *curr_job;
-
   List *active_jobs;
   uint last_jb_id;
 } sh_executor;

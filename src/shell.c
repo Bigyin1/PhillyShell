@@ -48,6 +48,7 @@ shell_init (Shell *sh)
     return SH_ERR;
 
   sh->e.last_jb_id = 0;
+  sh->e.in_subshell = false;
   return SH_OK;
 }
 

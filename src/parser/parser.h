@@ -56,6 +56,7 @@ typedef struct s_list_node
   sh_token *token;
   struct s_list_node *next;
   sh_ast_node *cont;
+  char *command;
 } list_node;
 
 typedef struct s_parser
