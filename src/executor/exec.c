@@ -1,9 +1,9 @@
 #include "exec.h"
 #include "../builtins/builtins.h"
+#include "../jobs/jobs.h"
 #include "../tty/tty.h"
 #include "exec_args.h"
 #include "fs.h"
-#include "jobs.h"
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -20,16 +20,6 @@ apply_cmd_pipe_io (int inp, int out)
     {
       dup2 (out, STDOUT_FILENO);
       close (out);
-    }
-}
-
-void
-cleanup_pipe_fds (int io[2])
-{
-  if (io)
-    {
-      close (io[0]);
-      close (io[1]);
     }
 }
 
@@ -80,8 +70,6 @@ restore_process_state (sh_executor *e)
   signal (SIGTSTP, SIG_DFL);
   signal (SIGTTIN, SIG_DFL);
   signal (SIGTTOU, SIG_DFL);
-
-  tcsetattr (STDIN_FILENO, TCSADRAIN, &tty_default);
 }
 
 bool
@@ -112,6 +100,20 @@ exec_non_fork_builtin (sh_executor *e, cmd_node *cn, char **argv)
     return sh_builtin_fg (e, argv);
 }
 
+void
+add_process_to_jobs_group (job *curr_job, int pid, bool bg)
+{
+  if (curr_job->pgid == -1) // if no dedicated pgroup
+    {
+      curr_job->pgid = pid;
+      setpgid (pid, curr_job->pgid);
+      if (!bg)
+        tcsetpgrp (0, pid);
+    }
+  else
+    setpgid (pid, curr_job->pgid);
+}
+
 bool
 exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
 {
@@ -133,15 +135,8 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      if (e->curr_job->pgid == -1) // if no dedicated pgroup
-        {
-          setpgid (0, 0);
-          if (!bg && e->is_interactive)
-            tcsetpgrp (0, getpid ());
-          e->curr_job->pgid = pid;
-        }
-      else
-        setpgid (0, e->curr_job->pgid);
+      if (e->is_interactive)
+        add_process_to_jobs_group (e->curr_job, pid, bg);
 
       restore_process_state (e);
       apply_cmd_redirs (cn->redirs);
@@ -156,13 +151,9 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
         exit (EXIT_FAILURE);
     }
 
-  if (e->curr_job->pgid == -1)
-    {
-      setpgid (pid, pid);
-      if (!bg && e->is_interactive)
-        tcsetpgrp (0, pid);
-      e->curr_job->pgid = pid;
-    }
+  if (e->is_interactive)
+    add_process_to_jobs_group (e->curr_job, pid,
+                               bg); // repeated, cause of race condition
 
   add_new_proc_to_job (e->curr_job, pid, cn->command);
   free_string_arr (argv);
@@ -175,8 +166,13 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
   int inp;
   int out;
   int p[2];
+  if (bg && !e->is_interactive)
+    {
+      fprintf (stderr, "fsh: job control is off\n");
+      return EXIT_FAILURE;
+    }
 
-  e->curr_job = new_job (++e->last_jb_id, pn->command, bg, e->in_subshell);
+  e->curr_job = new_job (++e->last_jb_id, pn->command, bg, e->is_interactive);
 
   e->bg_fg_enabled = true;
   if (list_size (pn->procs) > 1 || bg || !e->is_interactive)
@@ -253,43 +249,46 @@ exec_if_list (sh_executor *e, bin_op_node *bn)
 void
 if_list_subshell (sh_executor *e, list_node *ln)
 {
-  job *subshell_job = new_job (++e->last_jb_id, ln->command, true, false);
+  job *subshell_job = new_job (++e->last_jb_id, ln->command, true, true);
 
   int pid = fork ();
   if (pid < 0)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      restore_process_state (e);
-      e->in_subshell = true;
-      e->is_interactive = false;
       setpgid (0, 0);
+      restore_process_state (e);
+      e->is_interactive = false;
       exit (exec_if_list (e, (bin_op_node *)ln->cont));
     }
+
   setpgid (pid, pid);
   subshell_job->pgid = pid;
   add_new_proc_to_job (subshell_job, pid, NULL);
   add_new_job_to_list (e->active_jobs, subshell_job);
+  printf ("[%d] %d\n", subshell_job->id, subshell_job->pgid);
 }
 
 int
 exec_if_list_or_pipe (sh_executor *e, list_node *ln, bool bg)
 {
   node_type t = get_node_type (ln->cont);
-  int status;
+
   if (t == NODE_IF)
     {
-      if (bg)
+      if (!bg)
+        return exec_if_list (e, (bin_op_node *)ln->cont);
+
+      if (!e->is_interactive)
         {
-          if_list_subshell (e, ln);
-          return EXIT_SUCCESS;
+          fprintf (stderr, "fsh: job control is off\n");
+          return EXIT_FAILURE;
         }
-      status = exec_if_list (e, (bin_op_node *)ln->cont);
+      if_list_subshell (e, ln);
+      return EXIT_SUCCESS;
     }
   if (t == NODE_PIPE)
-    status = exec_pipeline (e, (pipeline_node *)ln->cont, bg);
-
-  return status;
+    return exec_pipeline (e, (pipeline_node *)ln->cont, bg);
 }
 
 int
@@ -304,22 +303,6 @@ exec_list (sh_executor *e, list_node *ln)
   status = exec_if_list_or_pipe (e, ln, bg);
   if (ln->next)
     status = exec_list (e, ln->next) && status;
-
-  return status;
-}
-
-int
-exec_ast (sh_executor *e, sh_ast_node root)
-{
-  node_type t = get_node_type (root);
-  int status;
-
-  if (t == NODE_SEP)
-    status = exec_list (e, root);
-  if (t == NODE_IF)
-    status = exec_if_list (e, root);
-  if (t == NODE_PIPE)
-    status = exec_pipeline (e, root, false);
 
   return status;
 }

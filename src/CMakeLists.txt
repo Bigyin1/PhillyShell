@@ -4,7 +4,8 @@ set(source_files
         executor/exec.c
         executor/fs.c
         executor/exec_args.c
-        executor/jobs.c
+        jobs/jobs.c
+        jobs/job_control.c
         errors/errors.c
         parser/pipeline_parser.c
         parser/cmd_parser.c

@@ -1,7 +1,7 @@
 #ifndef PHILLYSHELL_EXEC_H
 #define PHILLYSHELL_EXEC_H
+#include "../jobs/jobs.h"
 #include "../parser/parser.h"
-#include "jobs.h"
 #include <structs/slice.h>
 
 typedef struct s_sh_executor
@@ -10,7 +10,6 @@ typedef struct s_sh_executor
   HTable *env;
   Slice *path_var;
 
-  bool in_subshell;
   // job control
   bool is_interactive;
   bool bg_fg_enabled;

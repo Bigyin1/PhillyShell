@@ -36,9 +36,9 @@ sh_builtin_fg (sh_executor *e, char **argv)
 
       job_delete_func (
           e->curr_job); /* curr_job has no jobs yet (created for single fg
-                         command, which will not be added to his job) and will
+                         command, which will not be added to this job) and to
                          be deleted and swapped to designated job(job_id) */
-      e->curr_job = j;
+      e->curr_job = j;  // swapped
       e->last_jb_id = get_last_job_id (e->active_jobs);
       return EXIT_SUCCESS;
     }
