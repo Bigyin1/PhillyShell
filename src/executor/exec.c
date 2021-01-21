@@ -1,5 +1,6 @@
 #include "exec.h"
 #include "../builtins/builtins.h"
+#include "../tty/tty.h"
 #include "exec_args.h"
 #include "fs.h"
 #include "jobs.h"
@@ -70,13 +71,17 @@ apply_cmd_redirs (List *redirs)
 }
 
 void
-restore_process_state ()
+restore_process_state (sh_executor *e)
 {
+  if (!e->is_interactive)
+    return;
   signal (SIGINT, SIG_DFL);
   signal (SIGQUIT, SIG_DFL);
   signal (SIGTSTP, SIG_DFL);
   signal (SIGTTIN, SIG_DFL);
   signal (SIGTTOU, SIG_DFL);
+
+  tcsetattr (STDIN_FILENO, TCSADRAIN, &tty_default);
 }
 
 bool
@@ -131,14 +136,14 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
       if (e->curr_job->pgid == -1) // if no dedicated pgroup
         {
           setpgid (0, 0);
-          if (!bg)
+          if (!bg && e->is_interactive)
             tcsetpgrp (0, getpid ());
           e->curr_job->pgid = pid;
         }
       else
         setpgid (0, e->curr_job->pgid);
 
-      restore_process_state ();
+      restore_process_state (e);
       apply_cmd_redirs (cn->redirs);
       apply_cmd_pipe_io (inp, out);
 
@@ -154,7 +159,7 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
   if (e->curr_job->pgid == -1)
     {
       setpgid (pid, pid);
-      if (!bg)
+      if (!bg && e->is_interactive)
         tcsetpgrp (0, pid);
       e->curr_job->pgid = pid;
     }
@@ -174,10 +179,10 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
   e->curr_job = new_job (++e->last_jb_id, pn->command, bg, e->in_subshell);
 
   e->bg_fg_enabled = true;
-  if (list_size (pn->procs) > 1 || bg || e->in_subshell)
+  if (list_size (pn->procs) > 1 || bg || !e->is_interactive)
     e->bg_fg_enabled
         = false; /* disabling bg an fg utils in case of starting
-                  pipeline of > 1 procs or in background oe in subshell*/
+                  pipeline of > 1 procs or in background or non interactive*/
 
   Node *n;
   if (list_get_head (pn->procs, &n) != S_OK)
@@ -213,7 +218,8 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
   if (bg)
     printf ("[%d] %d\n", e->curr_job->id, e->curr_job->pgid);
   add_new_job_to_list (e->active_jobs, e->curr_job);
-  return bg ? EXIT_SUCCESS : get_job_exit_code (e->curr_job);
+  return bg ? EXIT_SUCCESS
+            : get_job_exit_code (e->curr_job, e->is_interactive);
 }
 
 int
@@ -254,10 +260,10 @@ if_list_subshell (sh_executor *e, list_node *ln)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      e->last_jb_id = 0;
+      restore_process_state (e);
       e->in_subshell = true;
+      e->is_interactive = false;
       setpgid (0, 0);
-      restore_process_state ();
       exit (exec_if_list (e, (bin_op_node *)ln->cont));
     }
   setpgid (pid, pid);
@@ -335,7 +341,8 @@ execute_cmd (sh_executor *e, char *cmd)
   sh_parser p = { .cmd = cmd };
   sh_ecode err;
 
-  update_bg_jobs (e->active_jobs);
+  if (e->is_interactive)
+    update_bg_jobs (e->active_jobs);
   e->last_jb_id = get_last_job_id (e->active_jobs);
 
   e->kv_env = env_to_kv (e->env);

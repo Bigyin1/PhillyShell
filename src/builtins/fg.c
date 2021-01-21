@@ -14,7 +14,7 @@ sh_builtin_fg (sh_executor *e, char **argv)
   if (!e->bg_fg_enabled) /* set up in exec_pipeline (try to run "fg | command"
                           in bash) */
     {
-      printf ("fsh: fg: job control is off\n");
+      fprintf (stderr, "fsh: fg: job control is off\n");
       return EXIT_FAILURE;
     }
 
@@ -32,7 +32,7 @@ sh_builtin_fg (sh_executor *e, char **argv)
       if (job_is_stopped (j))
         job_continue (j, true);
       else
-        job_push_to_foreground (j);
+        job_set_to_foreground (j);
 
       job_delete_func (
           e->curr_job); /* curr_job has no jobs yet (created for single fg
@@ -43,6 +43,6 @@ sh_builtin_fg (sh_executor *e, char **argv)
       return EXIT_SUCCESS;
     }
 
-  printf ("fsh: fg: %s: no such task\n", argv[1]);
+  fprintf (stderr, "fsh: fg: %s: no such task\n", argv[1]);
   return EXIT_FAILURE;
 }

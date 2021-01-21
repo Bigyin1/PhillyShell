@@ -2,6 +2,7 @@
 #define PHILLYSHELL_JOBS_H
 
 #include <structs/list.h>
+#include <termios.h>
 
 /* A process is a single process.  */
 typedef struct process
@@ -20,19 +21,20 @@ typedef struct job
   List *procs;
   pid_t pgid; /* process group ID */
   uint id;
+
+  struct termios job_term;
   bool is_background;
-  bool is_subshell;
 } job;
 
 bool job_delete_func (void *p);
-int get_job_exit_code (job *j);
+int get_job_exit_code (job *j, bool is_interactive);
 bool job_is_stopped (job *j);
 bool job_is_completed (job *j);
 bool job_any_running_procs (job *j);
 void update_bg_jobs (List *jl);
 int get_last_job_id (List *jl);
 void job_continue (job *j, bool in_fg);
-void job_push_to_foreground (job *j);
+void job_set_to_foreground (job *j);
 
 job *new_job (uint id, char *cmd, bool bg, bool subshell);
 void add_new_proc_to_job (job *j, pid_t pid, char *cmd);

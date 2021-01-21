@@ -1,5 +1,6 @@
 #include "jobs.h"
 #include "../errors/errors.h"
+#include "../tty/tty.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -65,13 +66,13 @@ update_job (job *j, pid_t pid, int status)
 }
 
 void
-wait_for_job (job *j, bool no_block)
+wait_for_job (job *j, bool no_block, bool interactive)
 {
   int options = WSTOPPED;
   if (no_block)
     options |= WNOHANG;
-  if (j->is_subshell)
-    options = 0; // in subshell wait only for terminated
+  if (!interactive)
+    options = 0; // if not interactive wait only for terminated
   while (job_any_running_procs (j))
     {
       int status;
@@ -88,12 +89,17 @@ wait_for_job (job *j, bool no_block)
 }
 
 int
-get_job_exit_code (job *j)
+get_job_exit_code (job *j, bool interactive)
 {
-  wait_for_job (j, false);
-  if (!j->is_subshell)
-    tcsetpgrp (0, getpgrp ());
-  if (job_is_stopped (j))
+  wait_for_job (j, false, interactive);
+
+  if (interactive) // restore tty state
+    {
+      tcsetpgrp (STDIN_FILENO, getpgrp ());
+      tcgetattr (STDIN_FILENO, &j->job_term); // save job's termios
+      tcsetattr (STDIN_FILENO, TCSADRAIN, &tty_fsh);
+    }
+  if (job_is_stopped (j) && interactive)
     {
       j->is_background = true;
       printf ("[%d]\tStopped\t%s\n", j->id, j->command);
@@ -115,25 +121,31 @@ update_bg_jobs (List *jl)
       job *j = n->data;
       if (!j->is_background)
         continue;
-      wait_for_job (j, true);
+      wait_for_job (j, true, true);
       if (job_is_completed (j))
-          printf ("[%d]\tCompleted\n", j->id);
-
+        printf ("[%d]\tCompleted\n", j->id);
     }
   list_filter_mod (jl, job_delete_func);
 }
 
 void
-job_push_to_foreground (job *j)
+job_set_to_foreground (job *j)
 {
   j->is_background = false;
   printf ("%s\n", j->command);
-  tcsetpgrp (0, j->pgid);
+  tcsetpgrp (STDIN_FILENO, j->pgid);
 }
 
 void
 job_continue (job *j, bool in_fg)
 {
+  if (in_fg)
+    {
+      job_set_to_foreground (j);
+      tcsetattr (STDIN_FILENO, TCSADRAIN,
+                 &j->job_term); // if continue stopped job in foreground,
+                                // restore its termios
+    }
   kill (-j->pgid, SIGCONT);
   Node *curr = NULL;
   for (list_get_head (j->procs, &curr); curr; curr = curr->next)
@@ -143,8 +155,6 @@ job_continue (job *j, bool in_fg)
     }
   if (!in_fg)
     printf ("[%d]\t%s &\n", j->id, j->command);
-  else
-    job_push_to_foreground (j);
 }
 
 int
@@ -168,12 +178,10 @@ new_job (uint id, char *cmd, bool bg, bool subshell)
   if (new_list (&j->procs) != S_OK)
     errors_fatal (MEM_ERROR);
 
+  j->job_term = tty_default;
   j->pgid = -1; // no pgid for now
   if (subshell)
-    {
-      j->pgid = getpid ();
-      j->is_subshell = true;
-    }
+    j->pgid = getpid ();
   j->is_background = bg;
   j->id = id;
   j->command = cmd;

@@ -12,6 +12,7 @@ typedef struct s_sh_executor
 
   bool in_subshell;
   // job control
+  bool is_interactive;
   bool bg_fg_enabled;
 
   job *curr_job;

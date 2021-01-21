@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "tty/tty.h"
 
 sh_ecode
 config_init (t_config *cfg)
@@ -23,12 +24,20 @@ shell_free (Shell *sh)
 sh_ecode
 shell_init (Shell *sh)
 {
-  signal (SIGINT, SIG_IGN);
-  signal (SIGQUIT, SIG_IGN);
-  signal (SIGTSTP, SIG_IGN);
-  signal (SIGTTIN, SIG_IGN);
-  signal (SIGTTOU, SIG_IGN);
+  sh->e.is_interactive = isatty (STDIN_FILENO);
+  if (sh->e.is_interactive)
+    {
+      signal (SIGINT, SIG_IGN);
+      signal (SIGQUIT, SIG_IGN);
+      signal (SIGTSTP, SIG_IGN);
+      signal (SIGTTIN, SIG_IGN);
+      signal (SIGTTOU, SIG_IGN);
 
+
+      if (tty_init() != SH_OK)
+        errors_fatal("Unexpected\n");
+
+    }
   sh->cfg = calloc (1, sizeof (t_config));
   if (!sh->cfg)
     errors_fatal (MEM_ERROR);
@@ -48,7 +57,6 @@ shell_init (Shell *sh)
     return SH_ERR;
 
   sh->e.last_jb_id = 0;
-  sh->e.in_subshell = false;
   return SH_OK;
 }
 
@@ -70,7 +78,7 @@ main_loop (Shell *sh)
           perror ("fsh:");
           return SH_ERR;
         }
-      sh->cmd_buf[strlen(sh->cmd_buf)-1] = 0;
+      sh->cmd_buf[strlen (sh->cmd_buf) - 1] = 0;
       execute_cmd (&sh->e, sh->cmd_buf);
     }
 }
