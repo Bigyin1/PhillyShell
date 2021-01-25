@@ -3,13 +3,13 @@
 #include <stdio.h>
 
 sh_ecode
-parse_environ (Shell *sh, char **environ)
+parse_environ (Shell *sh, char **env)
 {
   size_t len;
-  for (; *environ; environ++)
+  for (; *env; env++)
     {
-      char *var = *environ;
-      len = strcspn (*environ, "=");
+      char *var = *env;
+      len = strcspn (*env, "=");
       var[len] = '\0';
 
       if (hashtable_set (sh->e.env, var, var + len + 1) != S_OK)

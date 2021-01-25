@@ -1,7 +1,5 @@
 #include "exec.h"
 #include "../builtins/builtins.h"
-#include "../jobs/jobs.h"
-#include "../tty/tty.h"
 #include "exec_args.h"
 #include "fs.h"
 #include <fcntl.h>

@@ -21,7 +21,8 @@ set(source_files
         builtins/jbs.c
         builtins/bg.c
         builtins/fg.c
-        tty/tty.c)
+        tty/tty.c
+        tty/readline.c)
 
 add_library(${SHELL_LIB} ${source_files})
 

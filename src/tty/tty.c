@@ -1,51 +1,45 @@
 #include "tty.h"
-#include <errno.h>
-#include <stdio.h>
+#include <termcap.h>
 #include <unistd.h>
+#include "../errors/errors.h"
 
-struct termios tty_default;
-struct termios tty_fsh;
+static struct termios saved_term;
 
-//sh_ecode
-//tty_setraw (t_tty *tty)
-//{
-//  if (!isatty (STDIN_FILENO) && !isatty (STDOUT_FILENO))
-//    {
-//      return SH_ERR;
-//    }
-//  if (tcgetattr (STDIN_FILENO, &tty->curr) < 0)
-//    {
-//      perror ("fsh");
-//      return SH_ERR;
-//    }
-//  tty->save = tty->curr;
-//  tty->curr.c_lflag &= ~(ECHO | ICANON);
-//  tty->curr.c_cc[VMIN] = 1;
-//  tty->curr.c_cc[VTIME] = 0;
-//  if (tcgetattr (STDIN_FILENO, &tty->curr) < 0)
-//    {
-//      perror ("fsh");
-//      tcsetattr (STDIN_FILENO, TCSAFLUSH, &tty->save);
-//      return SH_ERR;
-//    }
-//  if ((tty->curr.c_lflag & (ECHO | ICANON)) || tty->curr.c_cc[VMIN] != 1
-//      || tty->curr.c_cc[VTIME] != 0)
-//    {
-//      tcsetattr (STDIN_FILENO, TCSAFLUSH, &tty->save);
-//      return SH_ERR;
-//    }
-//}
-
-sh_ecode tty_init() {
-      if (tcgetattr (STDIN_FILENO, &tty_default) < 0)
-    {
-      perror ("fsh");
-      return SH_ERR;
-    }
-    if (tcgetattr (STDIN_FILENO, &tty_fsh) < 0)
-    {
-        perror ("fsh");
-        return SH_ERR;
-    }
-    return SH_OK;
+void
+tty_save ()
+{
+  if (!isatty (STDIN_FILENO))
+    errors_fatal ("tty error\n");
+  if (tcgetattr (0, &saved_term) == -1)
+    errors_fatal ("tty error\n");
 }
+
+void
+tty_restore ()
+{
+  if (tcsetattr (0, TCSADRAIN, &saved_term) == -1)
+    errors_fatal ("tty error\n");
+}
+
+#ifdef unix
+static char term_buffer[2048];
+#else
+#define term_buffer 0
+#endif
+
+void
+tty_setraw (char *term_name)
+{
+  if (!isatty (STDIN_FILENO))
+    errors_fatal ("tty error\n");
+  struct termios term = saved_term;
+  term.c_lflag &= ~(ECHO | ICANON);
+  term.c_cc[VMIN] = 1;
+  term.c_cc[VTIME] = 0;
+  if (tcsetattr (0, TCSADRAIN, &term) == -1)
+    errors_fatal ("tty error\n");
+
+  if (tgetent (term_buffer, term_name) < 1)
+    errors_fatal ("terminal type error\n");
+}
+

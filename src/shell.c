@@ -1,10 +1,10 @@
 #include "shell.h"
 #include "environ/environ.h"
 #include "errors/errors.h"
+#include "tty/tty.h"
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "tty/tty.h"
 
 sh_ecode
 config_init (t_config *cfg)
@@ -33,10 +33,7 @@ shell_init (Shell *sh)
       signal (SIGTTIN, SIG_IGN);
       signal (SIGTTOU, SIG_IGN);
 
-
-      if (tty_init() != SH_OK)
-        errors_fatal("Unexpected\n");
-
+      tty_save ();
     }
   sh->cfg = calloc (1, sizeof (t_config));
   if (!sh->cfg)
@@ -67,19 +64,16 @@ shell_print_prompt (Shell *sh)
   fflush (stdout);
 }
 
-sh_ecode
+_Noreturn sh_ecode
 main_loop (Shell *sh)
 {
   while (1)
     {
-      shell_print_prompt (sh);
-      if (fgets (sh->cmd_buf, MAX_INPUT, stdin) == NULL)
-        {
-          perror ("fsh:");
-          return SH_ERR;
-        }
-      sh->cmd_buf[strlen (sh->cmd_buf) - 1] = 0;
-      execute_cmd (&sh->e, sh->cmd_buf);
+      tty_setraw (hashtable_get (sh->e.env, "TERM"));
+      String *s = tty_readline ();
+      tty_restore ();
+      execute_cmd (&sh->e, string_to_c_str (s));
+      string_free (s);
     }
 }
 
@@ -93,7 +87,6 @@ start (int argc, char **argv, char **environ)
       shell_free (&sh);
       return EXIT_FAILURE;
     }
-
   // preparing environment and path var
   parse_environ (&sh, environ);
   parse_path_var (&sh);

@@ -64,7 +64,6 @@ new_job (uint id, char *cmd, bool bg, bool interactive)
   if (new_list (&j->procs) != S_OK)
     errors_fatal (MEM_ERROR);
 
-  j->job_term = tty_default;
   j->pgid = -1;     // no pgid for now
   if (!interactive) /* if shell is not interactive, there will be no dedicated
                      process group for job */

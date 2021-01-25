@@ -62,11 +62,10 @@ get_job_exit_code (job *j, bool interactive)
     {
       tcsetpgrp (STDIN_FILENO, getpgrp ());
       tcgetattr (STDIN_FILENO, &j->job_term); // save job's termios
-      tcsetattr (STDIN_FILENO, TCSADRAIN, &tty_fsh);
+      tty_restore();
     }
   if (job_is_stopped (j) && interactive)
     {
-      j->is_background = true;
       printf ("[%d]\tStopped\t%s\n", j->id, j->command);
       return EXIT_SUCCESS;
     }
@@ -121,6 +120,12 @@ job_continue (job *j, bool in_foreground)
                  &j->job_term); /* if continuing stopped job in foreground,
        restore its termios */
     }
+  else
+    {
+      j->is_background = true;
+      printf ("[%d]\t%s &\n", j->id,
+              j->command); // notify user about continuing job in background
+    }
   if (kill (-j->pgid, SIGCONT) < 0)
     {
       perror ("fsh:");
@@ -132,7 +137,4 @@ job_continue (job *j, bool in_foreground)
       process *p = (process *)curr->data;
       p->stopped = false;
     }
-  if (!in_foreground)
-    printf ("[%d]\t%s &\n", j->id,
-            j->command); // notify user about continuing job in background
 }
