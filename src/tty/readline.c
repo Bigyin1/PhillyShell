@@ -30,18 +30,6 @@ my_out (int c)
 }
 
 void
-screen_output (char *cmd, size_t len)
-{
-  tputs (tgetstr ("sc", NULL), 1, my_out);
-  tputs (tgetstr ("cr", NULL), 1, my_out);
-  tputs (tgetstr ("cd", NULL), 1, my_out);
-  write (STDOUT_FILENO, "$> ", 3);
-  write (STDOUT_FILENO, cmd, len);
-  tputs (tgetstr ("rc", NULL), 1, my_out);
-  tputs (tgetstr ("nd", NULL), 1, my_out);
-}
-
-void
 read_key (tty_line *l)
 {
   memset (l->key, 0, 3);
@@ -56,10 +44,19 @@ void
 add_char (tty_line *l, char c)
 {
   string_insert (l->cmd, l->cursor_x++, c);
-  tputs (tgetstr ("im", NULL), 1, my_out);
-  tputs (tgetstr ("ic", NULL), 1, my_out);
-  write (STDOUT_FILENO, &c, 1);
-  tputs (tgetstr ("ei", NULL), 1, my_out);
+  if (l->cursor_x == string_len (l->cmd))
+    {
+      write (STDOUT_FILENO, &c, 1);
+      return;
+    }
+  tputs (tgetstr ("sc", NULL), 1, &my_out);
+  char *left = tgetstr ("le", NULL);
+  for (int i = 0; i < l->cursor_x - 1; ++i)
+    write (STDOUT_FILENO, left, strlen (left));
+
+  write (STDOUT_FILENO, string_to_c_str (l->cmd), string_len (l->cmd));
+  tputs (tgetstr ("rc", NULL), 1, &my_out);
+  tputs (tgetstr ("nd", NULL), 1, &my_out);
 }
 
 void
@@ -69,9 +66,9 @@ del_char (tty_line *l)
     return;
   string_erase_from_idx (l->cmd, --l->cursor_x);
   tputs (tgetstr ("le", NULL), 1, my_out);
-  tputs (tgetstr ("im", NULL), 1, my_out);
+  tputs (tgetstr ("dm", NULL), 1, my_out);
   tputs (tgetstr ("dc", NULL), 1, my_out);
-  tputs (tgetstr ("ei", NULL), 1, my_out);
+  tputs (tgetstr ("ed", NULL), 1, my_out);
 }
 
 void
@@ -102,15 +99,18 @@ bool
 process_input (tty_line *l)
 {
   read_key (l);
-
   if (l->key[0] == LF)
     {
       putchar (LF);
       return true;
     }
-  if (l->key[0] > 32 && l->key[0] < 127)
+  if (l->key[0] >= 32 && l->key[0] < 127)
     {
       add_char (l, l->key[0]);
+      if (l->key[1] >= 32 && l->key[1] < 127)
+        add_char (l, l->key[1]);
+      if (l->key[2] >= 32 && l->key[2] < 127)
+        add_char (l, l->key[2]);
       return false;
     }
   if (l->key[0] == DEL)
@@ -133,6 +133,7 @@ tty_readline ()
   string_new (&l.cmd, 0, 0);
 
   write (STDOUT_FILENO, "$> ", 3);
+
   while (!process_input (&l))
     {
     };
