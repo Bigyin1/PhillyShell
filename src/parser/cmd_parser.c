@@ -76,25 +76,6 @@ process_redir (sh_parser *p, cmd_node *cn)
   return SH_OK;
 }
 
-// void
-// process_var (sh_parser *p, cmd_node *cn)
-//{
-//  eat_token (p, SH_T_VAR_SIGN);
-//  if (p->curr_token->type == SH_T_WORD)
-//    {
-//      char *val = hashtable_get (p->vars, p->curr_token->val);
-//      eat_token (p, SH_T_WORD);
-//      if (val != NULL)
-//        process_word (cn, val);
-//      return;
-//    }
-//  if (p->curr_token->type == SH_T_SPACE)
-//    {
-//      process_word (cn, "$");
-//      return;
-//    }
-//}
-
 cmd_node *
 create_cmd_node (cmd_node **res)
 {

@@ -99,14 +99,14 @@ exec_non_fork_builtin (sh_executor *e, cmd_node *cn, char **argv)
 }
 
 void
-add_process_to_jobs_group (job *curr_job, int pid, bool bg)
+add_process_to_jobs_pgroup (job *curr_job, int pid, bool bg)
 {
   if (curr_job->pgid == -1) // if no dedicated pgroup
     {
       curr_job->pgid = pid;
       setpgid (pid, curr_job->pgid);
       if (!bg)
-        tcsetpgrp (0, pid);
+        tcsetpgrp (STDIN_FILENO, pid);
     }
   else
     setpgid (pid, curr_job->pgid);
@@ -134,7 +134,7 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
   if (pid == 0)
     {
       if (e->is_interactive)
-        add_process_to_jobs_group (e->curr_job, pid, bg);
+        add_process_to_jobs_pgroup (e->curr_job, getpid (), bg);
 
       restore_process_state (e);
       apply_cmd_redirs (cn->redirs);
@@ -150,8 +150,8 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
     }
 
   if (e->is_interactive)
-    add_process_to_jobs_group (e->curr_job, pid,
-                               bg); // repeated, cause of race condition
+    add_process_to_jobs_pgroup (e->curr_job, pid,
+                                bg); // repeated, cause of race condition
 
   add_new_proc_to_job (e->curr_job, pid, cn->command);
   free_string_arr (argv);
@@ -164,6 +164,7 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
   int inp;
   int out;
   int p[2];
+
   if (bg && !e->is_interactive)
     {
       fprintf (stderr, "fsh: job control is off\n");
@@ -254,7 +255,7 @@ if_list_subshell (sh_executor *e, list_node *ln)
     errors_fatal ("fsh: fork failed\n");
   if (pid == 0)
     {
-      setpgid (0, 0);
+      setpgid (0, 0); // subshell's jobs will be in this new process group
       restore_process_state (e);
       e->is_interactive = false;
       exit (exec_if_list (e, (bin_op_node *)ln->cont));
@@ -275,10 +276,14 @@ exec_if_list_or_pipe (sh_executor *e, list_node *ln, bool bg)
   if (t == NODE_IF)
     {
       if (!bg)
-        return exec_if_list (e, (bin_op_node *)ln->cont);
+        {
+          free (ln->command);
+          return exec_if_list (e, (bin_op_node *)ln->cont);
+        }
 
       if (!e->is_interactive)
         {
+          free (ln->command);
           fprintf (stderr, "fsh: job control is off\n");
           return EXIT_FAILURE;
         }
@@ -324,6 +329,7 @@ execute_cmd (sh_executor *e, char *cmd)
 
   if (e->is_interactive)
     update_bg_jobs (e->active_jobs);
+  list_filter_mod (e->active_jobs, job_delete_func); // deleting completed jobs
   e->last_jb_id = get_last_job_id (e->active_jobs);
 
   e->kv_env = env_to_kv (e->env);

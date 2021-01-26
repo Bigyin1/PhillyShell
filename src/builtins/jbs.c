@@ -17,8 +17,6 @@ sh_builtin_jobs (sh_executor *e)
       printf ("[%d] ", j->id);
       if (job_is_stopped (j))
         printf ("Stopped\t");
-      else if (job_is_completed (j))
-        printf ("Completed\t");
       else
         printf ("Running\t");
       printf ("%s\n", j->command);

@@ -11,7 +11,7 @@ job_any_running_procs (job *j)
   for (list_get_head (j->procs, &curr); curr; curr = curr->next)
     {
       process *p = (process *)curr->data;
-      if (!p->completed && !p->stopped)
+      if (!p->exited && !p->stopped && !p->signaled)
         return true;
     }
   return false;
@@ -21,12 +21,17 @@ bool
 job_is_stopped (job *j)
 {
   Node *curr = NULL;
+  bool one_is_stopped = false;
   for (list_get_head (j->procs, &curr); curr; curr = curr->next)
     {
       process *p = (process *)curr->data;
-      if (!p->stopped)
+      if (p->stopped)
+        one_is_stopped = true;
+      if (!p->exited && !p->stopped && !p->signaled)
         return false;
     }
+  if (!one_is_stopped)
+    return false;
   return true;
 }
 
@@ -37,7 +42,9 @@ job_is_completed (job *j)
   for (list_get_head (j->procs, &curr); curr; curr = curr->next)
     {
       process *p = (process *)curr->data;
-      if (!p->completed)
+      if (p->pid == 0)
+        continue;
+      if (!p->exited && !p->signaled)
         return false;
     }
   return true;
@@ -64,10 +71,10 @@ new_job (uint id, char *cmd, bool bg, bool interactive)
   if (new_list (&j->procs) != S_OK)
     errors_fatal (MEM_ERROR);
 
-  j->pgid = -1;     // no pgid for now
-  if (!interactive) /* if shell is not interactive, there will be no dedicated
-                     process group for job */
-    j->pgid = getpgrp ();
+  j->pgid = -1; // no pgid for now
+  if (!interactive)
+    j->pgid = getpgrp (); /* if shell is not interactive, there will be no
+   dedicated process group for job */
   j->is_background = bg;
   j->id = id;
   j->command = cmd;
@@ -112,8 +119,8 @@ add_new_non_fork_proc_to_job (job *j, int status, char *cmd)
   process *p = calloc (1, sizeof (process));
   if (!p)
     exit (EXIT_FAILURE);
-  p->status = status;
-  p->completed = true;
+  p->exited = true;
+  p->exit_status = status;
   p->command = cmd;
   list_push_back (j->procs, p);
 }

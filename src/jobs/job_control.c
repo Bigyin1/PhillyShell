@@ -9,6 +9,18 @@
 #define WAIT_NON_BLOCKING 1
 
 void
+proc_report_signaled (process *p, int status, int j_id)
+{
+  if (WTERMSIG (status) == SIGSEGV)
+    {
+      fprintf (stderr, "[%d]\t%d segmentation fault ", j_id, p->pid);
+      if (WCOREDUMP (status))
+        fprintf (stderr, "(core dumped) ");
+      fprintf (stderr, "%s\n", p->command);
+    }
+}
+
+void
 update_job (job *j, pid_t pid, int status)
 {
   Node *curr = NULL;
@@ -17,11 +29,22 @@ update_job (job *j, pid_t pid, int status)
       process *p = (process *)curr->data;
       if (p->pid != pid)
         continue;
-      p->status = WEXITSTATUS (p->status);
+      if (WIFEXITED (status))
+        {
+          p->exited = true;
+          p->exit_status = WEXITSTATUS (status);
+          return;
+        }
       if (WIFSTOPPED (status))
-        p->stopped = true;
-      else
-        p->completed = true;
+        {
+          p->stopped = true;
+          return;
+        }
+      if (WIFSIGNALED (status))
+        {
+          proc_report_signaled (p, status, j->id);
+          p->signaled = true;
+        }
       return;
     }
   errors_fatal ("fsh: unexpected job control error\n");
@@ -62,21 +85,29 @@ get_job_exit_code (job *j, bool interactive)
     {
       tcsetpgrp (STDIN_FILENO, getpgrp ());
       tcgetattr (STDIN_FILENO, &j->job_term); // save job's termios
-      tty_restore();
+      tty_restore ();
     }
-  if (job_is_stopped (j) && interactive)
+  if (job_is_stopped (j))
     {
-      printf ("[%d]\tStopped\t%s\n", j->id, j->command);
+      if (interactive)
+        printf ("[%d]\tStopped\t%s\n", j->id, j->command);
       return EXIT_SUCCESS;
     }
 
   Node *n;
   list_get_head (j->procs, &n);
   process *p = n->data;
-  return p->status;
+  if (p->exited)
+    return p->exit_status;
+
+  if (p->signaled)
+    return EXIT_FAILURE;
+
+  errors_fatal ("fsh: unexpected job control error\n");
 }
 
-// update_bg_jobs updates state of background jobs in non-blocking way
+// update_bg_jobs updates state of background jobs in non-blocking way and
+// notify about completed
 void
 update_bg_jobs (List *jl)
 {
@@ -90,7 +121,6 @@ update_bg_jobs (List *jl)
       if (job_is_completed (j))
         printf ("[%d]\tCompleted\n", j->id);
     }
-  list_filter_mod (jl, job_delete_func);
 }
 
 // Methods used in bg and fg builtins
@@ -133,8 +163,5 @@ job_continue (job *j, bool in_foreground)
     }
   Node *curr = NULL;
   for (list_get_head (j->procs, &curr); curr; curr = curr->next)
-    {
-      process *p = (process *)curr->data;
-      p->stopped = false;
-    }
+    ((process *)curr->data)->stopped = false;
 }

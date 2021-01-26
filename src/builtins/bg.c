@@ -4,7 +4,6 @@
 
 #include "../executor/exec.h"
 #include "structs/list.h"
-#include <signal.h>
 #include <sys/types.h>
 
 int
