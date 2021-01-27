@@ -64,6 +64,9 @@ get_last_job_id (List *jl)
 job *
 new_job (uint id, char *cmd, bool bg, bool interactive)
 {
+  if (bg && !interactive) /* if job is background and we are not interactive,
+                           dont create job at all */
+    return NULL;
   job *j = calloc (1, sizeof (struct job));
   if (!j)
     errors_fatal (MEM_ERROR);
@@ -105,6 +108,8 @@ job_delete_func (void *p)
 void
 add_new_proc_to_job (job *j, pid_t pid, char *cmd)
 {
+  if (!j)
+    return;
   process *p = calloc (1, sizeof (process));
   if (!p)
     exit (EXIT_FAILURE);
@@ -116,6 +121,8 @@ add_new_proc_to_job (job *j, pid_t pid, char *cmd)
 void
 add_new_non_fork_proc_to_job (job *j, int status, char *cmd)
 {
+  if (!j)
+    return;
   process *p = calloc (1, sizeof (process));
   if (!p)
     exit (EXIT_FAILURE);

@@ -18,6 +18,14 @@ proc_report_signaled (process *p, int status, int j_id)
         fprintf (stderr, "(core dumped) ");
       fprintf (stderr, "%s\n", p->command);
     }
+  else
+    {
+      fprintf (stderr, "[%d]\t%d terminated by signal: %d ", j_id, p->pid,
+               WTERMSIG (status));
+      if (WCOREDUMP (status))
+        fprintf (stderr, "(core dumped) ");
+      fprintf (stderr, "%s\n", p->command);
+    }
 }
 
 void

@@ -165,12 +165,6 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
   int out;
   int p[2];
 
-  if (bg && !e->is_interactive)
-    {
-      fprintf (stderr, "fsh: job control is off\n");
-      return EXIT_FAILURE;
-    }
-
   e->curr_job = new_job (++e->last_jb_id, pn->command, bg, e->is_interactive);
 
   e->bg_fg_enabled = true;
@@ -210,11 +204,19 @@ exec_pipeline (sh_executor *e, pipeline_node *pn, bool bg)
         }
     }
 
+  if (bg && e->is_interactive)
+    printf ("[%d] %d\n", e->curr_job->id, e->curr_job->pgid); // notify user
+  if (e->is_interactive)
+    add_new_job_to_list (
+        e->active_jobs,
+        e->curr_job); // we have to track all jobs in interactive mode
   if (bg)
-    printf ("[%d] %d\n", e->curr_job->id, e->curr_job->pgid);
-  add_new_job_to_list (e->active_jobs, e->curr_job);
-  return bg ? EXIT_SUCCESS
-            : get_job_exit_code (e->curr_job, e->is_interactive);
+    return EXIT_SUCCESS;
+
+  int ecode = get_job_exit_code (e->curr_job, e->is_interactive);
+  if (!e->is_interactive)
+    job_delete_func (e->curr_job);
+  return ecode;
 }
 
 int
@@ -248,7 +250,8 @@ exec_if_list (sh_executor *e, bin_op_node *bn)
 void
 if_list_subshell (sh_executor *e, list_node *ln)
 {
-  job *subshell_job = new_job (++e->last_jb_id, ln->command, true, true);
+  job *subshell_job
+      = new_job (++e->last_jb_id, ln->command, true, e->is_interactive);
 
   int pid = fork ();
   if (pid < 0)
@@ -261,6 +264,8 @@ if_list_subshell (sh_executor *e, list_node *ln)
       exit (exec_if_list (e, (bin_op_node *)ln->cont));
     }
 
+  if (!e->is_interactive)
+    return;
   setpgid (pid, pid);
   subshell_job->pgid = pid;
   add_new_proc_to_job (subshell_job, pid, NULL);
@@ -281,12 +286,6 @@ exec_if_list_or_pipe (sh_executor *e, list_node *ln, bool bg)
           return exec_if_list (e, (bin_op_node *)ln->cont);
         }
 
-      if (!e->is_interactive)
-        {
-          free (ln->command);
-          fprintf (stderr, "fsh: job control is off\n");
-          return EXIT_FAILURE;
-        }
       if_list_subshell (e, ln);
       return EXIT_SUCCESS;
     }
