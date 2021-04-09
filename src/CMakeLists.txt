@@ -24,10 +24,8 @@ set(source_files
         tty/tty.c
         tty/readline.c)
 
-add_library(${SHELL_LIB} ${source_files})
+add_executable(${SHELL_EXE_NAME} ${source_files})
 
-target_include_directories(${SHELL_LIB} PUBLIC ../includes)
-target_link_libraries(${SHELL_LIB} PRIVATE structs)
-
-target_link_libraries(${SHELL_LIB} PRIVATE ncurses)
+target_link_libraries(${SHELL_EXE_NAME} structs)
+target_link_libraries(${SHELL_EXE_NAME} ncurses)
 
