@@ -1,2 +1,6 @@
 cmake-*
 .idea
+.vscode
+build
+venv
+Testing
