@@ -3,7 +3,7 @@
 //
 
 #include "../executor/exec.h"
-#include "structs/list.h"
+#include <structs/list.h>
 #include <sys/types.h>
 
 int
@@ -22,7 +22,7 @@ sh_builtin_bg (sh_executor *e, char **argv)
     return EXIT_FAILURE;
   job_id = atoi (argv[1]);
 
-  Node *curr;
+  Node *curr = NULL;
   for (list_get_head (e->active_jobs, &curr); curr; curr = curr->next)
     {
       job *j = (job *)curr->data;

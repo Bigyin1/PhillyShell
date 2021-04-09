@@ -91,8 +91,8 @@ get_job_exit_code (job *j, bool interactive)
 
   if (interactive) // restore tty state
     {
-      tcsetpgrp (STDIN_FILENO, getpgrp ());
       tcgetattr (STDIN_FILENO, &j->job_term); // save job's termios
+      tcsetpgrp (STDIN_FILENO, getpgrp ()); // grub control over terminal back
       tty_restore ();
     }
   if (job_is_stopped (j))
@@ -106,7 +106,8 @@ get_job_exit_code (job *j, bool interactive)
   list_get_head (j->procs, &n);
   process *p = n->data;
   if (p->exited)
-    return p->exit_status;
+    return p->exit_status; // return first process exit status as result for
+                           // all job
 
   if (p->signaled)
     return EXIT_FAILURE;

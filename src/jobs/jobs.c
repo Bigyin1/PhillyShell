@@ -106,6 +106,16 @@ job_delete_func (void *p)
 }
 
 void
+job_delete_force_func (void *p)
+{
+  job *j = (job *)p;
+
+  list_free (j->procs, proc_delete_func);
+  free (j->command);
+  free (j);
+}
+
+void
 add_new_proc_to_job (job *j, pid_t pid, char *cmd)
 {
   if (!j)

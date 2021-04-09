@@ -6,7 +6,6 @@
 
 typedef struct s_sh_executor
 {
-  char **kv_env;
   HTable *env;
   Slice *path_var;
 
@@ -20,5 +19,6 @@ typedef struct s_sh_executor
 } sh_executor;
 
 sh_ecode execute_cmd (sh_executor *e, char *cmd);
+void executor_free (sh_executor *e);
 
 #endif // PHILLYSHELL_EXEC_H

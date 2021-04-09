@@ -21,4 +21,6 @@ typedef struct s_shell
   sh_executor e;
 } Shell;
 
+void shell_free (Shell *sh);
+
 #endif // PHILLYSHELL_SHELL_H

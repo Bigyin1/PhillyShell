@@ -1,24 +1,21 @@
 #include "shell.h"
 #include "environ/environ.h"
 #include "errors/errors.h"
+#include "executor/exec.h"
+#include "jobs/jobs.h"
+#include "shell.h"
 #include "tty/tty.h"
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-sh_ecode
-config_init (t_config *cfg)
-{
-  cfg->prompt = "$> ";
-  return SH_OK;
-}
+Shell *glob_shell;
 
 void
 shell_free (Shell *sh)
 {
-  free (sh->cfg);
-  hashtable_free (sh->e.env);
-  slice_free (sh->e.path_var, NULL);
+  executor_free (&sh->e);
 }
 
 sh_ecode
@@ -35,9 +32,6 @@ shell_init (Shell *sh)
 
       tty_save ();
     }
-  sh->cfg = calloc (1, sizeof (t_config));
-  if (!sh->cfg)
-    errors_fatal (MEM_ERROR);
 
   t_ret rt = new_list (&sh->e.active_jobs);
   if (rt != S_OK)
@@ -50,18 +44,8 @@ shell_init (Shell *sh)
   if (rt != S_OK)
     errors_fatal (MEM_ERROR);
 
-  if (config_init (sh->cfg) != SH_OK)
-    return SH_ERR;
-
   sh->e.last_jb_id = 0;
   return SH_OK;
-}
-
-void
-shell_print_prompt (Shell *sh)
-{
-  printf ("%s", sh->cfg->prompt);
-  fflush (stdout);
 }
 
 _Noreturn sh_ecode
@@ -82,6 +66,7 @@ start (int argc, char **argv, char **environ)
 {
   Shell sh;
 
+  glob_shell = &sh;
   if (shell_init (&sh) != SH_OK)
     {
       shell_free (&sh);
@@ -108,4 +93,10 @@ start (int argc, char **argv, char **environ)
   if (err == SH_OK)
     return EXIT_SUCCESS;
   return EXIT_FAILURE;
+}
+
+int
+main (int argc, char **argv, char **environ)
+{
+  return start (argc, argv, environ);
 }

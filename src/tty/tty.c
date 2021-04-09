@@ -1,10 +1,12 @@
 #include "tty.h"
+#include "../errors/errors.h"
 #include <termcap.h>
 #include <unistd.h>
-#include "../errors/errors.h"
 
 static struct termios saved_term;
 
+/* Save current controlling terminal termios.
+  Used to save default termios.*/
 void
 tty_save ()
 {
@@ -14,6 +16,7 @@ tty_save ()
     errors_fatal ("tty error\n");
 }
 
+/* Restore default termios*/
 void
 tty_restore ()
 {
@@ -42,4 +45,3 @@ tty_setraw (char *term_name)
   if (tgetent (term_buffer, term_name) < 1)
     errors_fatal ("terminal type error\n");
 }
-

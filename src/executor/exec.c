@@ -3,6 +3,8 @@
 #include "exec_args.h"
 #include "fs.h"
 #include <fcntl.h>
+#include <signal.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -145,7 +147,7 @@ exec_simple_cmd (sh_executor *e, cmd_node *cn, int inp, int out, bool bg)
       char *path = find_exe_path (e, cn->name);
       if (!path)
         exit (EXIT_FAILURE);
-      if (execve (path, argv, e->kv_env) < 0)
+      if (execve (path, argv, env_to_kv (e->env)) < 0)
         exit (EXIT_FAILURE);
     }
 
@@ -278,13 +280,12 @@ exec_if_list_or_pipe (sh_executor *e, list_node *ln, bool bg)
 {
   node_type t = get_node_type (ln->cont);
 
+  if (!bg)
+    free (ln->command);
   if (t == NODE_IF)
     {
       if (!bg)
-        {
-          free (ln->command);
-          return exec_if_list (e, (bin_op_node *)ln->cont);
-        }
+        return exec_if_list (e, (bin_op_node *)ln->cont);
 
       if_list_subshell (e, ln);
       return EXIT_SUCCESS;
@@ -319,6 +320,14 @@ debug_info (sh_tokenizer *t, sh_parser *p)
 #endif
 }
 
+void
+executor_free (sh_executor *e)
+{
+  hashtable_free (e->env);
+  slice_free (e->path_var, NULL);
+  list_free (e->active_jobs, job_delete_force_func);
+}
+
 sh_ecode
 execute_cmd (sh_executor *e, char *cmd)
 {
@@ -331,7 +340,6 @@ execute_cmd (sh_executor *e, char *cmd)
   list_filter_mod (e->active_jobs, job_delete_func); // deleting completed jobs
   e->last_jb_id = get_last_job_id (e->active_jobs);
 
-  e->kv_env = env_to_kv (e->env);
   if (tokenize (&t, cmd) != SH_OK)
     return SH_ERR;
   if (parse_tokens (&p, &t) != SH_OK)
@@ -342,7 +350,5 @@ execute_cmd (sh_executor *e, char *cmd)
   err = exec_list (e, p.root_node);
 
   parser_free (&p);
-  free_string_arr (e->kv_env);
-
   return err;
 }

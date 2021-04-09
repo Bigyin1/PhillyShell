@@ -23,7 +23,7 @@ sh_builtin_fg (sh_executor *e, char **argv)
     return EXIT_FAILURE;
   job_id = atoi (argv[1]);
 
-  Node *curr;
+  Node *curr = NULL;
   for (list_get_head (e->active_jobs, &curr); curr; curr = curr->next)
     {
       job *j = (job *)curr->data;

@@ -1,7 +1,7 @@
 #ifndef PHILLYSHELL_CMD_TOKENIZER_H
 #define PHILLYSHELL_CMD_TOKENIZER_H
 #include "../errors/errors.h"
-#include "structs/list.h"
+#include <structs/list.h>
 #include <stdbool.h>
 #include <stdio.h>
 

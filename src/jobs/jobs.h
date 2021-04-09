@@ -8,7 +8,7 @@
 typedef struct process
 {
   char *command;
-  pid_t pid;  /* process ID */
+  pid_t pid;       /* process ID */
   int exit_status; /* reported status value */
 
   bool exited;
@@ -25,11 +25,12 @@ typedef struct job
   uint id;
 
   struct termios job_term;
-  //bool is_reported;
+  // bool is_reported;
   bool is_background;
 } job;
 
 bool job_delete_func (void *p);
+void job_delete_force_func (void *p);
 int get_job_exit_code (job *j, bool is_interactive);
 bool job_is_stopped (job *j);
 bool job_is_completed (job *j);
