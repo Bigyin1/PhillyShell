@@ -32,6 +32,7 @@ process_redir (sh_parser *p, cmd_node *cn)
 
   // 2>1
   int first_fd = -1;
+  int second_fd = -1;
   if (p->curr_token->type & SH_T_WORD)
     {
       if (!is_redir_token (peek_next_token_type (p)))
@@ -55,13 +56,24 @@ process_redir (sh_parser *p, cmd_node *cn)
       printf ("fsh: parsing error near %s\n", redir_tok->val);
       return SH_ERR;
     }
+  if (is_fd (file))
+    {
+      second_fd = atoi (file);
+    }
 
   struct s_redir *redir = calloc (1, sizeof (struct s_redir));
 
   if (redir_tok->type & (SH_T_REDIR_S_R | SH_T_REDIR_D_R))
     {
       redir->from_fd = first_fd == -1 ? STDOUT_FILENO : first_fd;
-      redir->to_file = file;
+      if (second_fd == -1)
+        {
+          redir->to_file = file;
+        }
+      else
+        {
+          redir->to_fd = second_fd;
+        }
     }
   if (redir_tok->type & SH_T_REDIR_D_R)
     redir->append = true;
@@ -120,7 +132,7 @@ parse_simple_cmd (sh_parser *p, cmd_node **res)
     }
 
   uint e = p->curr_token->pos;
-  cn->command = node_to_str(p->cmd, s, e);
+  cn->command = node_to_str (p->cmd, s, e);
 
   return SH_OK;
 }

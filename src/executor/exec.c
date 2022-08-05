@@ -56,6 +56,12 @@ apply_cmd_redirs (List *redirs)
             exit (EXIT_FAILURE);
         }
 
+      if (!redir->from_file && !redir->to_file)
+        {
+          if (dup2 (redir->from_fd, redir->to_fd) == -1)
+            exit (EXIT_FAILURE);
+        }
+
       head = head->next;
     }
 }

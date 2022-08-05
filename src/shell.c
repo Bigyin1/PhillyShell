@@ -64,7 +64,7 @@ main_loop (Shell *sh)
 int
 start (int argc, char **argv, char **environ)
 {
-  Shell sh;
+  Shell sh = { 0 };
 
   glob_shell = &sh;
   if (shell_init (&sh) != SH_OK)
